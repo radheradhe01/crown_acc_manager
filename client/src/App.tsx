@@ -14,6 +14,8 @@ import OutstandingBalances from "@/pages/reports/outstanding-balances";
 import GeneralLedger from "@/pages/reports/general-ledger";
 import TrialBalance from "@/pages/reports/trial-balance";
 import ExpenseCategories from "@/pages/reports/expense-categories";
+import ProfitLoss from "@/pages/reports/profit-loss";
+import BalanceSheet from "@/pages/reports/balance-sheet";
 import MainLayout from "@/components/layout/main-layout";
 
 function Router() {
@@ -30,6 +32,8 @@ function Router() {
         <Route path="/reports/general-ledger" component={GeneralLedger} />
         <Route path="/reports/trial-balance" component={TrialBalance} />
         <Route path="/reports/expense-categories" component={ExpenseCategories} />
+        <Route path="/reports/profit-loss" component={ProfitLoss} />
+        <Route path="/reports/balance-sheet" component={BalanceSheet} />
         <Route component={NotFound} />
       </Switch>
     </MainLayout>

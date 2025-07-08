@@ -10,7 +10,9 @@ import {
   Book, 
   Calculator, 
   PieChart,
-  User
+  User,
+  TrendingUp,
+  Building
 } from "lucide-react";
 import { CompanySelector } from "../company-selector";
 import { cn } from "@/lib/utils";
@@ -29,6 +31,8 @@ const reportItems = [
   { path: "/reports/general-ledger", label: "General Ledger", icon: Book },
   { path: "/reports/trial-balance", label: "Trial Balance", icon: Calculator },
   { path: "/reports/expense-categories", label: "Expense Categories", icon: PieChart },
+  { path: "/reports/profit-loss", label: "Profit & Loss", icon: TrendingUp },
+  { path: "/reports/balance-sheet", label: "Balance Sheet", icon: Building },
 ];
 
 export function Sidebar() {

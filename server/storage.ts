@@ -120,6 +120,8 @@ export interface IStorage {
   getGeneralLedger(companyId: number, startDate?: string, endDate?: string): Promise<any[]>;
   getTrialBalance(companyId: number, asOfDate?: string): Promise<any[]>;
   getExpenseCategoryReport(companyId: number, startDate?: string, endDate?: string): Promise<any[]>;
+  getProfitLossReport(companyId: number, startDate?: string, endDate?: string): Promise<any>;
+  getBalanceSheetReport(companyId: number, asOfDate?: string): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -656,6 +658,223 @@ export class DatabaseStorage implements IStorage {
       ...row,
       totalAmount: Number(row.totalAmount || 0),
     }));
+  }
+
+  // P&L Report
+  async getProfitLossReport(companyId: number, startDate?: string, endDate?: string): Promise<any> {
+    const currentDate = new Date();
+    const defaultStartDate = startDate || new Date(currentDate.getFullYear(), 0, 1).toISOString().split('T')[0];
+    const defaultEndDate = endDate || currentDate.toISOString().split('T')[0];
+
+    // Get revenue from invoices
+    const revenueQuery = db
+      .select({
+        totalRevenue: sql<number>`sum(${invoices.amount})`.as('totalRevenue'),
+      })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.companyId, companyId),
+          eq(invoices.status, 'PAID'),
+          gte(invoices.invoiceDate, defaultStartDate),
+          lte(invoices.invoiceDate, defaultEndDate)
+        )
+      );
+
+    // Get expenses from bills
+    const expenseQuery = db
+      .select({
+        totalExpenses: sql<number>`sum(${bills.amount})`.as('totalExpenses'),
+      })
+      .from(bills)
+      .where(
+        and(
+          eq(bills.companyId, companyId),
+          eq(bills.status, 'PAID'),
+          gte(bills.billDate, defaultStartDate),
+          lte(bills.billDate, defaultEndDate)
+        )
+      );
+
+    // Get expense categories breakdown
+    const expenseCategoriesQuery = db
+      .select({
+        categoryName: expenseCategories.name,
+        totalAmount: sql<number>`sum(${transactions.amount})`.as('totalAmount'),
+      })
+      .from(transactions)
+      .innerJoin(expenseCategories, eq(transactions.categoryId, expenseCategories.id))
+      .where(
+        and(
+          eq(transactions.companyId, companyId),
+          eq(transactions.transactionType, 'EXPENSE'),
+          gte(transactions.transactionDate, defaultStartDate),
+          lte(transactions.transactionDate, defaultEndDate)
+        )
+      )
+      .groupBy(expenseCategories.name)
+      .orderBy(desc(sql`sum(${transactions.amount})`));
+
+    const [revenueResult] = await revenueQuery;
+    const [expenseResult] = await expenseQuery;
+    const expenseCategoriesResult = await expenseCategoriesQuery;
+
+    const totalRevenue = Number(revenueResult?.totalRevenue || 0);
+    const totalExpenses = Number(expenseResult?.totalExpenses || 0);
+    const netIncome = totalRevenue - totalExpenses;
+
+    return {
+      period: {
+        startDate: defaultStartDate,
+        endDate: defaultEndDate,
+      },
+      revenue: {
+        totalRevenue,
+      },
+      expenses: {
+        totalExpenses,
+        categories: expenseCategoriesResult.map((cat: any) => ({
+          categoryName: cat.categoryName,
+          totalAmount: Number(cat.totalAmount || 0),
+        })),
+      },
+      netIncome,
+    };
+  }
+
+  // Balance Sheet Report
+  async getBalanceSheetReport(companyId: number, asOfDate?: string): Promise<any> {
+    const currentDate = new Date();
+    const defaultAsOfDate = asOfDate || currentDate.toISOString().split('T')[0];
+
+    // Get assets from chart of accounts
+    const assetsQuery = db
+      .select({
+        accountName: chartOfAccounts.accountName,
+        accountType: chartOfAccounts.accountType,
+        balance: sql<number>`
+          COALESCE(
+            (SELECT SUM(
+              CASE 
+                WHEN je.type = 'debit' THEN je.amount
+                ELSE -je.amount
+              END
+            ) 
+            FROM ${journalEntries} je 
+            WHERE je.account_id = ${chartOfAccounts.id} 
+            AND je.transaction_date <= ${defaultAsOfDate}), 0
+          )
+        `.as('balance'),
+      })
+      .from(chartOfAccounts)
+      .where(
+        and(
+          eq(chartOfAccounts.companyId, companyId),
+          eq(chartOfAccounts.isActive, true),
+          or(
+            eq(chartOfAccounts.accountType, 'Asset'),
+            eq(chartOfAccounts.accountType, 'Current Asset'),
+            eq(chartOfAccounts.accountType, 'Fixed Asset')
+          )
+        )
+      )
+      .orderBy(chartOfAccounts.accountCode);
+
+    // Get liabilities from chart of accounts
+    const liabilitiesQuery = db
+      .select({
+        accountName: chartOfAccounts.accountName,
+        accountType: chartOfAccounts.accountType,
+        balance: sql<number>`
+          COALESCE(
+            (SELECT SUM(
+              CASE 
+                WHEN je.type = 'credit' THEN je.amount
+                ELSE -je.amount
+              END
+            ) 
+            FROM ${journalEntries} je 
+            WHERE je.account_id = ${chartOfAccounts.id} 
+            AND je.transaction_date <= ${defaultAsOfDate}), 0
+          )
+        `.as('balance'),
+      })
+      .from(chartOfAccounts)
+      .where(
+        and(
+          eq(chartOfAccounts.companyId, companyId),
+          eq(chartOfAccounts.isActive, true),
+          or(
+            eq(chartOfAccounts.accountType, 'Liability'),
+            eq(chartOfAccounts.accountType, 'Current Liability'),
+            eq(chartOfAccounts.accountType, 'Long-term Liability')
+          )
+        )
+      )
+      .orderBy(chartOfAccounts.accountCode);
+
+    // Get equity from chart of accounts
+    const equityQuery = db
+      .select({
+        accountName: chartOfAccounts.accountName,
+        accountType: chartOfAccounts.accountType,
+        balance: sql<number>`
+          COALESCE(
+            (SELECT SUM(
+              CASE 
+                WHEN je.type = 'credit' THEN je.amount
+                ELSE -je.amount
+              END
+            ) 
+            FROM ${journalEntries} je 
+            WHERE je.account_id = ${chartOfAccounts.id} 
+            AND je.transaction_date <= ${defaultAsOfDate}), 0
+          )
+        `.as('balance'),
+      })
+      .from(chartOfAccounts)
+      .where(
+        and(
+          eq(chartOfAccounts.companyId, companyId),
+          eq(chartOfAccounts.isActive, true),
+          eq(chartOfAccounts.accountType, 'Equity')
+        )
+      )
+      .orderBy(chartOfAccounts.accountCode);
+
+    const assets = await assetsQuery;
+    const liabilities = await liabilitiesQuery;
+    const equity = await equityQuery;
+
+    const totalAssets = assets.reduce((sum, asset) => sum + Number(asset.balance || 0), 0);
+    const totalLiabilities = liabilities.reduce((sum, liability) => sum + Number(liability.balance || 0), 0);
+    const totalEquity = equity.reduce((sum, equityItem) => sum + Number(equityItem.balance || 0), 0);
+
+    return {
+      asOfDate: defaultAsOfDate,
+      assets: {
+        accounts: assets.map(asset => ({
+          ...asset,
+          balance: Number(asset.balance || 0),
+        })),
+        total: totalAssets,
+      },
+      liabilities: {
+        accounts: liabilities.map(liability => ({
+          ...liability,
+          balance: Number(liability.balance || 0),
+        })),
+        total: totalLiabilities,
+      },
+      equity: {
+        accounts: equity.map(equityItem => ({
+          ...equityItem,
+          balance: Number(equityItem.balance || 0),
+        })),
+        total: totalEquity,
+      },
+      totalLiabilitiesAndEquity: totalLiabilities + totalEquity,
+    };
   }
 }
 

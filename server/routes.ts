@@ -381,6 +381,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // P&L Report
+  app.get("/api/companies/:companyId/reports/profit-loss", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const { startDate, endDate } = req.query;
+      
+      const report = await storage.getProfitLossReport(
+        companyId,
+        startDate as string,
+        endDate as string
+      );
+      
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching P&L report:", error);
+      res.status(500).json({ message: "Failed to fetch P&L report" });
+    }
+  });
+
+  // Balance Sheet Report
+  app.get("/api/companies/:companyId/reports/balance-sheet", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const { asOfDate } = req.query;
+      
+      const report = await storage.getBalanceSheetReport(
+        companyId,
+        asOfDate as string
+      );
+      
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching balance sheet report:", error);
+      res.status(500).json({ message: "Failed to fetch balance sheet report" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
