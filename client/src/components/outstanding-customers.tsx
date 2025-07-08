@@ -13,11 +13,14 @@ export function OutstandingCustomers() {
     enabled: !!currentCompany?.id,
   });
 
-  const getCustomerIcon = (name: string) => {
-    if (name.toLowerCase().includes('inc') || name.toLowerCase().includes('corp') || name.toLowerCase().includes('llc')) {
+  const getCustomerIcon = (name: string | undefined | null) => {
+    if (!name) return <User className="h-5 w-5 text-gray-600" />;
+    
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('inc') || lowerName.includes('corp') || lowerName.includes('llc')) {
       return <Building className="h-5 w-5 text-gray-600" />;
     }
-    if (name.toLowerCase().includes('store') || name.toLowerCase().includes('shop')) {
+    if (lowerName.includes('store') || lowerName.includes('shop')) {
       return <Store className="h-5 w-5 text-gray-600" />;
     }
     return <User className="h-5 w-5 text-gray-600" />;
