@@ -70,7 +70,13 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess }: CompanyFormModa
   });
 
   const onSubmit = (data: FormData) => {
-    mutation.mutate(data);
+    // Transform the data to handle empty date strings
+    const transformedData = {
+      ...data,
+      fiscalYearStart: data.fiscalYearStart || "2024-01-01",
+      fiscalYearEnd: data.fiscalYearEnd || "2024-12-31",
+    };
+    mutation.mutate(transformedData);
   };
 
   return (
