@@ -1,0 +1,386 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { z } from "zod";
+import { 
+  insertCompanySchema, 
+  insertCustomerSchema, 
+  insertVendorSchema, 
+  insertBankAccountSchema,
+  insertTransactionSchema,
+  insertInvoiceSchema,
+  insertBillSchema,
+  insertExpenseCategorySchema,
+  insertBankStatementUploadSchema
+} from "@shared/schema";
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  // Companies routes
+  app.get("/api/companies", async (req, res) => {
+    try {
+      const companies = await storage.getCompanies();
+      res.json(companies);
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+      res.status(500).json({ message: "Failed to fetch companies" });
+    }
+  });
+
+  app.get("/api/companies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const company = await storage.getCompany(id);
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      res.json(company);
+    } catch (error) {
+      console.error("Error fetching company:", error);
+      res.status(500).json({ message: "Failed to fetch company" });
+    }
+  });
+
+  app.post("/api/companies", async (req, res) => {
+    try {
+      const validatedData = insertCompanySchema.parse(req.body);
+      const company = await storage.createCompany(validatedData);
+      res.status(201).json(company);
+    } catch (error) {
+      console.error("Error creating company:", error);
+      res.status(400).json({ message: "Failed to create company" });
+    }
+  });
+
+  app.put("/api/companies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertCompanySchema.partial().parse(req.body);
+      const company = await storage.updateCompany(id, validatedData);
+      res.json(company);
+    } catch (error) {
+      console.error("Error updating company:", error);
+      res.status(400).json({ message: "Failed to update company" });
+    }
+  });
+
+  app.delete("/api/companies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCompany(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting company:", error);
+      res.status(500).json({ message: "Failed to delete company" });
+    }
+  });
+
+  // Customers routes
+  app.get("/api/companies/:companyId/customers", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const customers = await storage.getCustomers(companyId);
+      res.json(customers);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      res.status(500).json({ message: "Failed to fetch customers" });
+    }
+  });
+
+  app.get("/api/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const customer = await storage.getCustomer(id);
+      if (!customer) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      res.json(customer);
+    } catch (error) {
+      console.error("Error fetching customer:", error);
+      res.status(500).json({ message: "Failed to fetch customer" });
+    }
+  });
+
+  app.post("/api/customers", async (req, res) => {
+    try {
+      const validatedData = insertCustomerSchema.parse(req.body);
+      const customer = await storage.createCustomer(validatedData);
+      res.status(201).json(customer);
+    } catch (error) {
+      console.error("Error creating customer:", error);
+      res.status(400).json({ message: "Failed to create customer" });
+    }
+  });
+
+  app.put("/api/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertCustomerSchema.partial().parse(req.body);
+      const customer = await storage.updateCustomer(id, validatedData);
+      res.json(customer);
+    } catch (error) {
+      console.error("Error updating customer:", error);
+      res.status(400).json({ message: "Failed to update customer" });
+    }
+  });
+
+  app.delete("/api/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomer(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting customer:", error);
+      res.status(500).json({ message: "Failed to delete customer" });
+    }
+  });
+
+  // Vendors routes
+  app.get("/api/companies/:companyId/vendors", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const vendors = await storage.getVendors(companyId);
+      res.json(vendors);
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+      res.status(500).json({ message: "Failed to fetch vendors" });
+    }
+  });
+
+  app.get("/api/vendors/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const vendor = await storage.getVendor(id);
+      if (!vendor) {
+        return res.status(404).json({ message: "Vendor not found" });
+      }
+      res.json(vendor);
+    } catch (error) {
+      console.error("Error fetching vendor:", error);
+      res.status(500).json({ message: "Failed to fetch vendor" });
+    }
+  });
+
+  app.post("/api/vendors", async (req, res) => {
+    try {
+      const validatedData = insertVendorSchema.parse(req.body);
+      const vendor = await storage.createVendor(validatedData);
+      res.status(201).json(vendor);
+    } catch (error) {
+      console.error("Error creating vendor:", error);
+      res.status(400).json({ message: "Failed to create vendor" });
+    }
+  });
+
+  app.put("/api/vendors/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertVendorSchema.partial().parse(req.body);
+      const vendor = await storage.updateVendor(id, validatedData);
+      res.json(vendor);
+    } catch (error) {
+      console.error("Error updating vendor:", error);
+      res.status(400).json({ message: "Failed to update vendor" });
+    }
+  });
+
+  app.delete("/api/vendors/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteVendor(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting vendor:", error);
+      res.status(500).json({ message: "Failed to delete vendor" });
+    }
+  });
+
+  // Bank Accounts routes
+  app.get("/api/companies/:companyId/bank-accounts", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const bankAccounts = await storage.getBankAccounts(companyId);
+      res.json(bankAccounts);
+    } catch (error) {
+      console.error("Error fetching bank accounts:", error);
+      res.status(500).json({ message: "Failed to fetch bank accounts" });
+    }
+  });
+
+  app.post("/api/bank-accounts", async (req, res) => {
+    try {
+      const validatedData = insertBankAccountSchema.parse(req.body);
+      const bankAccount = await storage.createBankAccount(validatedData);
+      res.status(201).json(bankAccount);
+    } catch (error) {
+      console.error("Error creating bank account:", error);
+      res.status(400).json({ message: "Failed to create bank account" });
+    }
+  });
+
+  // Transactions routes
+  app.get("/api/companies/:companyId/transactions", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const transactions = await storage.getTransactions(companyId, page, limit);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  app.post("/api/transactions", async (req, res) => {
+    try {
+      const validatedData = insertTransactionSchema.parse(req.body);
+      const transaction = await storage.createTransaction(validatedData);
+      res.status(201).json(transaction);
+    } catch (error) {
+      console.error("Error creating transaction:", error);
+      res.status(400).json({ message: "Failed to create transaction" });
+    }
+  });
+
+  // Invoices routes
+  app.get("/api/companies/:companyId/invoices", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const invoices = await storage.getInvoices(companyId);
+      res.json(invoices);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
+  app.post("/api/invoices", async (req, res) => {
+    try {
+      const validatedData = insertInvoiceSchema.parse(req.body);
+      const invoice = await storage.createInvoice(validatedData);
+      res.status(201).json(invoice);
+    } catch (error) {
+      console.error("Error creating invoice:", error);
+      res.status(400).json({ message: "Failed to create invoice" });
+    }
+  });
+
+  // Bills routes
+  app.get("/api/companies/:companyId/bills", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const bills = await storage.getBills(companyId);
+      res.json(bills);
+    } catch (error) {
+      console.error("Error fetching bills:", error);
+      res.status(500).json({ message: "Failed to fetch bills" });
+    }
+  });
+
+  app.post("/api/bills", async (req, res) => {
+    try {
+      const validatedData = insertBillSchema.parse(req.body);
+      const bill = await storage.createBill(validatedData);
+      res.status(201).json(bill);
+    } catch (error) {
+      console.error("Error creating bill:", error);
+      res.status(400).json({ message: "Failed to create bill" });
+    }
+  });
+
+  // Expense Categories routes
+  app.get("/api/companies/:companyId/expense-categories", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const categories = await storage.getExpenseCategories(companyId);
+      res.json(categories);
+    } catch (error) {
+      console.error("Error fetching expense categories:", error);
+      res.status(500).json({ message: "Failed to fetch expense categories" });
+    }
+  });
+
+  app.post("/api/expense-categories", async (req, res) => {
+    try {
+      const validatedData = insertExpenseCategorySchema.parse(req.body);
+      const category = await storage.createExpenseCategory(validatedData);
+      res.status(201).json(category);
+    } catch (error) {
+      console.error("Error creating expense category:", error);
+      res.status(400).json({ message: "Failed to create expense category" });
+    }
+  });
+
+  // Bank Statement Upload routes
+  app.get("/api/companies/:companyId/bank-uploads", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const uploads = await storage.getBankStatementUploads(companyId);
+      res.json(uploads);
+    } catch (error) {
+      console.error("Error fetching bank uploads:", error);
+      res.status(500).json({ message: "Failed to fetch bank uploads" });
+    }
+  });
+
+  app.post("/api/bank-uploads", async (req, res) => {
+    try {
+      const validatedData = insertBankStatementUploadSchema.parse(req.body);
+      const upload = await storage.createBankStatementUpload(validatedData);
+      res.status(201).json(upload);
+    } catch (error) {
+      console.error("Error creating bank upload:", error);
+      res.status(400).json({ message: "Failed to create bank upload" });
+    }
+  });
+
+  // Dashboard routes
+  app.get("/api/companies/:companyId/dashboard/metrics", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const metrics = await storage.getDashboardMetrics(companyId);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching dashboard metrics:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard metrics" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/dashboard/recent-transactions", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const limit = parseInt(req.query.limit as string) || 10;
+      const transactions = await storage.getRecentTransactions(companyId, limit);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching recent transactions:", error);
+      res.status(500).json({ message: "Failed to fetch recent transactions" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/dashboard/outstanding-customers", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const customers = await storage.getOutstandingCustomers(companyId);
+      res.json(customers);
+    } catch (error) {
+      console.error("Error fetching outstanding customers:", error);
+      res.status(500).json({ message: "Failed to fetch outstanding customers" });
+    }
+  });
+
+  // Chart of Accounts routes
+  app.get("/api/companies/:companyId/chart-of-accounts", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const accounts = await storage.getChartOfAccounts(companyId);
+      res.json(accounts);
+    } catch (error) {
+      console.error("Error fetching chart of accounts:", error);
+      res.status(500).json({ message: "Failed to fetch chart of accounts" });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
