@@ -34,7 +34,7 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const { data: bankAccounts = [] } = useQuery<BankAccount[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "bank-accounts"],
+    queryKey: [`/api/companies/${currentCompany?.id}/bank-accounts`],
     enabled: !!currentCompany?.id,
   });
 
@@ -79,7 +79,7 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies", currentCompany?.id, "bank-uploads"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-uploads`] });
       toast({
         title: "Success",
         description: "Bank statement uploaded successfully",
@@ -126,14 +126,17 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <Label htmlFor="bankAccountId">Bank Account</Label>
-            <Select onValueChange={(value) => form.setValue("bankAccountId", parseInt(value))}>
+            <Select 
+              value={form.watch("bankAccountId")?.toString() || ""} 
+              onValueChange={(value) => form.setValue("bankAccountId", parseInt(value))}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select account..." />
               </SelectTrigger>
               <SelectContent>
                 {bankAccounts.map((account) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
-                    {account.accountName}
+                    {account.accountName} - {account.bankName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -145,7 +148,10 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
 
           <div>
             <Label htmlFor="fileFormat">File Format</Label>
-            <Select onValueChange={(value) => form.setValue("fileFormat", value)}>
+            <Select 
+              value={form.watch("fileFormat") || "CSV"} 
+              onValueChange={(value) => form.setValue("fileFormat", value)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select format..." />
               </SelectTrigger>
