@@ -17,13 +17,13 @@ export default function CustomerStatement() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  const { data: customers } = useQuery({
-    queryKey: ["/api/companies", currentCompany?.id, "customers"],
+  const { data: customers, isLoading: customersLoading } = useQuery({
+    queryKey: [`/api/companies/${currentCompany?.id}/customers`],
     enabled: !!currentCompany?.id,
   });
 
   const { data: statementSummary, isLoading } = useQuery({
-    queryKey: ["/api/companies", currentCompany?.id, "customers", selectedCustomerId, "statement-summary"],
+    queryKey: [`/api/companies/${currentCompany?.id}/customers/${selectedCustomerId}/statement-summary`],
     enabled: !!currentCompany?.id && !!selectedCustomerId,
   });
 
@@ -95,14 +95,20 @@ export default function CustomerStatement() {
               <Label htmlFor="customer">Customer</Label>
               <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select customer" />
+                  <SelectValue placeholder={customersLoading ? "Loading customers..." : "Select customer"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {customers?.map((customer: Customer) => (
-                    <SelectItem key={customer.id} value={customer.id.toString()}>
-                      {customer.name}
-                    </SelectItem>
-                  ))}
+                  {customersLoading ? (
+                    <SelectItem value="" disabled>Loading customers...</SelectItem>
+                  ) : customers && customers.length > 0 ? (
+                    customers.map((customer: Customer) => (
+                      <SelectItem key={customer.id} value={customer.id.toString()}>
+                        {customer.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>No customers found</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
