@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,8 +24,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Upload, FileText, X } from "lucide-react";
-import { insertRevenueUploadSchema } from "@shared/schema";
+import {
+  Alert,
+  AlertDescription,
+} from "@/components/ui/alert";
+import { Upload, FileText, X, Users, AlertTriangle } from "lucide-react";
+import { insertRevenueUploadSchema, insertCustomerSchema } from "@shared/schema";
+import type { Customer } from "@shared/schema";
 import { parseCsv } from "@/lib/csv-parser";
 
 const formSchema = insertRevenueUploadSchema.extend({
@@ -49,7 +54,15 @@ export function RevenueUploadModal({
 }: RevenueUploadModalProps) {
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
   const [fileName, setFileName] = useState<string>("");
+  const [missingCustomers, setMissingCustomers] = useState<string[]>([]);
+  const [showCustomerCreation, setShowCustomerCreation] = useState(false);
   const { toast } = useToast();
+
+  // Query existing customers
+  const { data: customers = [] } = useQuery({
+    queryKey: ["/api/companies", companyId, "customers"],
+    enabled: !!companyId,
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -64,10 +77,7 @@ export function RevenueUploadModal({
 
   const createUploadMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      return await apiRequest("/api/revenue-uploads", {
-        method: "POST",
-        body: data,
-      });
+      return await apiRequest("POST", "/api/revenue-uploads", data);
     },
     onSuccess: (upload) => {
       // Auto-process the upload if CSV data is available
@@ -94,10 +104,7 @@ export function RevenueUploadModal({
 
   const processUploadMutation = useMutation({
     mutationFn: async ({ uploadId, csvData }: { uploadId: number; csvData: any[] }) => {
-      return await apiRequest(`/api/revenue-uploads/${uploadId}/process`, {
-        method: "POST",
-        body: { csvData },
-      });
+      return await apiRequest("POST", `/api/revenue-uploads/${uploadId}/process`, { csvData });
     },
     onSuccess: () => {
       toast({
@@ -109,6 +116,27 @@ export function RevenueUploadModal({
       toast({
         title: "Error",
         description: "Failed to process revenue upload",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createCustomerMutation = useMutation({
+    mutationFn: async (customerData: { name: string; companyId: number }) => {
+      return await apiRequest("POST", "/api/customers", customerData);
+    },
+    onSuccess: () => {
+      // Invalidate customers query to refetch updated list
+      queryClient.invalidateQueries({ queryKey: ["/api/companies", companyId, "customers"] });
+      toast({
+        title: "Success",
+        description: "Customer created successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create customer",
         variant: "destructive",
       });
     },
@@ -158,6 +186,17 @@ export function RevenueUploadModal({
         return;
       }
 
+      // Check for missing customers
+      const existingCustomerNames = customers.map((c: Customer) => c.name.toLowerCase());
+      const csvCustomerNames = parsedData.map(row => row.customerName?.toLowerCase()).filter(Boolean);
+      const missing = csvCustomerNames.filter(name => !existingCustomerNames.includes(name));
+      const uniqueMissing = [...new Set(missing)];
+      
+      if (uniqueMissing.length > 0) {
+        setMissingCustomers(uniqueMissing);
+        setShowCustomerCreation(true);
+      }
+
       setCsvPreview(parsedData);
       setFileName(file.name);
       form.setValue("fileName", file.name);
@@ -180,10 +219,44 @@ export function RevenueUploadModal({
     }
   };
 
+  const handleCreateMissingCustomers = async () => {
+    try {
+      // Create all missing customers
+      for (const customerName of missingCustomers) {
+        await createCustomerMutation.mutateAsync({
+          name: customerName,
+          companyId: companyId,
+        });
+      }
+      
+      // Reset missing customers state
+      setMissingCustomers([]);
+      setShowCustomerCreation(false);
+      
+      toast({
+        title: "Success",
+        description: `${missingCustomers.length} customers created successfully`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create some customers",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSkipCustomerCreation = () => {
+    setShowCustomerCreation(false);
+    setMissingCustomers([]);
+  };
+
   const handleClose = () => {
     form.reset();
     setCsvPreview([]);
     setFileName("");
+    setMissingCustomers([]);
+    setShowCustomerCreation(false);
     onClose();
   };
 
@@ -196,6 +269,46 @@ export function RevenueUploadModal({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Missing Customers Alert */}
+            {showCustomerCreation && missingCustomers.length > 0 && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-3">
+                    <p>
+                      The following customers are not in your database and need to be created:
+                    </p>
+                    <div className="bg-gray-50 p-2 rounded text-sm">
+                      {missingCustomers.map((customer, index) => (
+                        <div key={index} className="flex items-center">
+                          <Users className="h-3 w-3 mr-2 text-blue-600" />
+                          <span className="capitalize">{customer}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleCreateMissingCustomers}
+                        disabled={createCustomerMutation.isPending}
+                      >
+                        {createCustomerMutation.isPending ? "Creating..." : "Create Customers"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSkipCustomerCreation}
+                      >
+                        Skip
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* File Upload */}
             <div className="space-y-2">
               <Label htmlFor="file">CSV File</Label>
