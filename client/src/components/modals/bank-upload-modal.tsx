@@ -98,6 +98,14 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
   });
 
   const onSubmit = (data: FormData) => {
+    if (!data.bankAccountId) {
+      toast({
+        title: "Error",
+        description: "Please select a bank account",
+        variant: "destructive",
+      });
+      return;
+    }
     mutation.mutate(data);
   };
 

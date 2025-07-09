@@ -12,7 +12,8 @@ import {
   PieChart,
   User,
   TrendingUp,
-  Building
+  Building,
+  CreditCard
 } from "lucide-react";
 import { CompanySelector } from "../company-selector";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ const navigationItems = [
   { path: "/", label: "Dashboard", icon: ChartLine },
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/vendors", label: "Vendors", icon: Truck },
+  { path: "/bank-accounts", label: "Bank Accounts", icon: CreditCard },
   { path: "/bank-statements", label: "Bank Statements", icon: Upload },
   { path: "/revenue", label: "Revenue", icon: DollarSign },
   { path: "/expenses", label: "Expenses", icon: Receipt },
