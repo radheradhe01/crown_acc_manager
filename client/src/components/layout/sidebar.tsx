@@ -24,6 +24,7 @@ const navigationItems = [
   { path: "/bank-statements", label: "Bank Statements", icon: Upload },
   { path: "/revenue", label: "Revenue", icon: DollarSign },
   { path: "/expenses", label: "Expenses", icon: Receipt },
+  { path: "/customer-statement", label: "Customer Statement", icon: User },
 ];
 
 const reportItems = [

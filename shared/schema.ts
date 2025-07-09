@@ -204,6 +204,41 @@ export const bankStatementUploads = pgTable("bank_statement_uploads", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Revenue Uploads table - for uploading revenue sheets
+export const revenueUploads = pgTable("revenue_uploads", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  fileName: text("file_name").notNull(),
+  uploadDate: timestamp("upload_date").defaultNow(),
+  processedDate: timestamp("processed_date"),
+  status: text("status").notNull().default("PENDING"), // PENDING, PROCESSED, FAILED
+  totalRows: integer("total_rows"),
+  processedRows: integer("processed_rows"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Customer Statement Lines table - for detailed customer statement records
+export const customerStatementLines = pgTable("customer_statement_lines", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  customerId: integer("customer_id").references(() => customers.id).notNull(),
+  lineDate: date("line_date").notNull(),
+  lineType: text("line_type").notNull(), // REVENUE, COST, PAYMENT, OPENING_BALANCE, CLOSING_BALANCE
+  description: text("description").notNull(),
+  revenue: decimal("revenue", { precision: 10, scale: 2 }).default("0.00"),
+  cost: decimal("cost", { precision: 10, scale: 2 }).default("0.00"),
+  nettingBalance: decimal("netting_balance", { precision: 10, scale: 2 }).default("0.00"),
+  debitAmount: decimal("debit_amount", { precision: 10, scale: 2 }).default("0.00"),
+  creditAmount: decimal("credit_amount", { precision: 10, scale: 2 }).default("0.00"),
+  runningBalance: decimal("running_balance", { precision: 10, scale: 2 }).default("0.00"),
+  referenceNumber: text("reference_number"),
+  revenueUploadId: integer("revenue_upload_id").references(() => revenueUploads.id),
+  bankStatementUploadId: integer("bank_statement_upload_id").references(() => bankStatementUploads.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const companiesRelations = relations(companies, ({ many }) => ({
   customers: many(customers),
@@ -215,6 +250,8 @@ export const companiesRelations = relations(companies, ({ many }) => ({
   bills: many(bills),
   expenseCategories: many(expenseCategories),
   bankStatementUploads: many(bankStatementUploads),
+  revenueUploads: many(revenueUploads),
+  customerStatementLines: many(customerStatementLines),
 }));
 
 export const customersRelations = relations(customers, ({ one, many }) => ({
@@ -224,6 +261,7 @@ export const customersRelations = relations(customers, ({ one, many }) => ({
   }),
   transactions: many(transactions),
   invoices: many(invoices),
+  customerStatementLines: many(customerStatementLines),
 }));
 
 export const vendorsRelations = relations(vendors, ({ one, many }) => ({
@@ -309,6 +347,33 @@ export const chartOfAccountsRelations = relations(chartOfAccounts, ({ one, many 
   journalEntries: many(journalEntries),
 }));
 
+export const revenueUploadsRelations = relations(revenueUploads, ({ one, many }) => ({
+  company: one(companies, {
+    fields: [revenueUploads.companyId],
+    references: [companies.id],
+  }),
+  customerStatementLines: many(customerStatementLines),
+}));
+
+export const customerStatementLinesRelations = relations(customerStatementLines, ({ one }) => ({
+  company: one(companies, {
+    fields: [customerStatementLines.companyId],
+    references: [companies.id],
+  }),
+  customer: one(customers, {
+    fields: [customerStatementLines.customerId],
+    references: [customers.id],
+  }),
+  revenueUpload: one(revenueUploads, {
+    fields: [customerStatementLines.revenueUploadId],
+    references: [revenueUploads.id],
+  }),
+  bankStatementUpload: one(bankStatementUploads, {
+    fields: [customerStatementLines.bankStatementUploadId],
+    references: [bankStatementUploads.id],
+  }),
+}));
+
 // Insert schemas
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true, updatedAt: true });
@@ -319,6 +384,8 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true,
 export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertExpenseCategorySchema = createInsertSchema(expenseCategories).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBankStatementUploadSchema = createInsertSchema(bankStatementUploads).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRevenueUploadSchema = createInsertSchema(revenueUploads).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCustomerStatementLineSchema = createInsertSchema(customerStatementLines).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Select types
 export type Company = typeof companies.$inferSelect;
@@ -332,6 +399,8 @@ export type ExpenseCategory = typeof expenseCategories.$inferSelect;
 export type BankStatementUpload = typeof bankStatementUploads.$inferSelect;
 export type ChartOfAccount = typeof chartOfAccounts.$inferSelect;
 export type JournalEntry = typeof journalEntries.$inferSelect;
+export type RevenueUpload = typeof revenueUploads.$inferSelect;
+export type CustomerStatementLine = typeof customerStatementLines.$inferSelect;
 
 // Insert types
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -343,6 +412,8 @@ export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type InsertBill = z.infer<typeof insertBillSchema>;
 export type InsertExpenseCategory = z.infer<typeof insertExpenseCategorySchema>;
 export type InsertBankStatementUpload = z.infer<typeof insertBankStatementUploadSchema>;
+export type InsertRevenueUpload = z.infer<typeof insertRevenueUploadSchema>;
+export type InsertCustomerStatementLine = z.infer<typeof insertCustomerStatementLineSchema>;
 
 // User types for future auth
 export type UpsertUser = typeof users.$inferInsert;

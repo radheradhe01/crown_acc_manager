@@ -10,6 +10,8 @@ import {
   bankStatementUploads,
   chartOfAccounts,
   journalEntries,
+  revenueUploads,
+  customerStatementLines,
   type Company,
   type Customer,
   type Vendor,
@@ -21,6 +23,8 @@ import {
   type BankStatementUpload,
   type ChartOfAccount,
   type JournalEntry,
+  type RevenueUpload,
+  type CustomerStatementLine,
   type InsertCompany,
   type InsertCustomer,
   type InsertVendor,
@@ -30,6 +34,8 @@ import {
   type InsertBill,
   type InsertExpenseCategory,
   type InsertBankStatementUpload,
+  type InsertRevenueUpload,
+  type InsertCustomerStatementLine,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sum, gte, lte, sql } from "drizzle-orm";
@@ -122,6 +128,31 @@ export interface IStorage {
   getExpenseCategoryReport(companyId: number, startDate?: string, endDate?: string): Promise<any[]>;
   getProfitLossReport(companyId: number, startDate?: string, endDate?: string): Promise<any>;
   getBalanceSheetReport(companyId: number, asOfDate?: string): Promise<any>;
+
+  // Revenue Uploads
+  getRevenueUploads(companyId: number): Promise<RevenueUpload[]>;
+  getRevenueUpload(id: number): Promise<RevenueUpload | undefined>;
+  createRevenueUpload(upload: InsertRevenueUpload): Promise<RevenueUpload>;
+  updateRevenueUpload(id: number, upload: Partial<InsertRevenueUpload>): Promise<RevenueUpload>;
+  processRevenueUpload(uploadId: number, csvData: any[]): Promise<void>;
+
+  // Customer Statement Lines
+  getCustomerStatementLines(companyId: number, customerId: number, startDate?: string, endDate?: string): Promise<CustomerStatementLine[]>;
+  getCustomerStatementLine(id: number): Promise<CustomerStatementLine | undefined>;
+  createCustomerStatementLine(line: InsertCustomerStatementLine): Promise<CustomerStatementLine>;
+  updateCustomerStatementLine(id: number, line: Partial<InsertCustomerStatementLine>): Promise<CustomerStatementLine>;
+  deleteCustomerStatementLine(id: number): Promise<void>;
+
+  // Customer Statement Summary
+  getCustomerStatementSummary(companyId: number, customerId: number, startDate?: string, endDate?: string): Promise<{
+    openingBalance: number;
+    totalRevenue: number;
+    totalCost: number;
+    totalDebits: number;
+    totalCredits: number;
+    closingBalance: number;
+    lines: CustomerStatementLine[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -874,6 +905,175 @@ export class DatabaseStorage implements IStorage {
         total: totalEquity,
       },
       totalLiabilitiesAndEquity: totalLiabilities + totalEquity,
+    };
+  }
+
+  // Revenue Uploads
+  async getRevenueUploads(companyId: number): Promise<RevenueUpload[]> {
+    return await db.select().from(revenueUploads).where(eq(revenueUploads.companyId, companyId));
+  }
+
+  async getRevenueUpload(id: number): Promise<RevenueUpload | undefined> {
+    const [upload] = await db.select().from(revenueUploads).where(eq(revenueUploads.id, id));
+    return upload;
+  }
+
+  async createRevenueUpload(upload: InsertRevenueUpload): Promise<RevenueUpload> {
+    const [newUpload] = await db.insert(revenueUploads).values(upload).returning();
+    return newUpload;
+  }
+
+  async updateRevenueUpload(id: number, upload: Partial<InsertRevenueUpload>): Promise<RevenueUpload> {
+    const [updatedUpload] = await db.update(revenueUploads)
+      .set({ ...upload, updatedAt: new Date() })
+      .where(eq(revenueUploads.id, id))
+      .returning();
+    return updatedUpload;
+  }
+
+  async processRevenueUpload(uploadId: number, csvData: any[]): Promise<void> {
+    const upload = await this.getRevenueUpload(uploadId);
+    if (!upload) throw new Error('Revenue upload not found');
+
+    try {
+      // Process each row of CSV data
+      for (const row of csvData) {
+        // Find or create customer
+        let customer = await db.select().from(customers)
+          .where(and(eq(customers.companyId, upload.companyId), eq(customers.name, row.customerName)))
+          .limit(1);
+
+        if (customer.length === 0) {
+          // Create new customer
+          const [newCustomer] = await db.insert(customers).values({
+            companyId: upload.companyId,
+            name: row.customerName,
+            paymentTerms: 'Net 30'
+          }).returning();
+          customer = [newCustomer];
+        }
+
+        // Create revenue statement line
+        const nettingBalance = Number(row.revenue || 0) - Number(row.cost || 0);
+        
+        await db.insert(customerStatementLines).values({
+          companyId: upload.companyId,
+          customerId: customer[0].id,
+          lineDate: row.date,
+          lineType: 'REVENUE',
+          description: `Revenue entry from ${upload.fileName}`,
+          revenue: row.revenue || '0.00',
+          cost: row.cost || '0.00',
+          nettingBalance: nettingBalance.toFixed(2),
+          debitAmount: '0.00',
+          creditAmount: '0.00',
+          runningBalance: nettingBalance.toFixed(2),
+          revenueUploadId: uploadId
+        });
+      }
+
+      // Update upload status
+      await this.updateRevenueUpload(uploadId, {
+        status: 'PROCESSED',
+        processedDate: new Date(),
+        processedRows: csvData.length
+      });
+    } catch (error) {
+      // Update upload status with error
+      await this.updateRevenueUpload(uploadId, {
+        status: 'FAILED',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  // Customer Statement Lines
+  async getCustomerStatementLines(companyId: number, customerId: number, startDate?: string, endDate?: string): Promise<CustomerStatementLine[]> {
+    let whereConditions = [
+      eq(customerStatementLines.companyId, companyId),
+      eq(customerStatementLines.customerId, customerId)
+    ];
+
+    if (startDate) {
+      whereConditions.push(gte(customerStatementLines.lineDate, startDate));
+    }
+
+    if (endDate) {
+      whereConditions.push(lte(customerStatementLines.lineDate, endDate));
+    }
+
+    return await db.select().from(customerStatementLines)
+      .where(and(...whereConditions))
+      .orderBy(customerStatementLines.lineDate, customerStatementLines.id);
+  }
+
+  async getCustomerStatementLine(id: number): Promise<CustomerStatementLine | undefined> {
+    const [line] = await db.select().from(customerStatementLines).where(eq(customerStatementLines.id, id));
+    return line;
+  }
+
+  async createCustomerStatementLine(line: InsertCustomerStatementLine): Promise<CustomerStatementLine> {
+    const [newLine] = await db.insert(customerStatementLines).values(line).returning();
+    return newLine;
+  }
+
+  async updateCustomerStatementLine(id: number, line: Partial<InsertCustomerStatementLine>): Promise<CustomerStatementLine> {
+    const [updatedLine] = await db.update(customerStatementLines)
+      .set({ ...line, updatedAt: new Date() })
+      .where(eq(customerStatementLines.id, id))
+      .returning();
+    return updatedLine;
+  }
+
+  async deleteCustomerStatementLine(id: number): Promise<void> {
+    await db.delete(customerStatementLines).where(eq(customerStatementLines.id, id));
+  }
+
+  // Customer Statement Summary
+  async getCustomerStatementSummary(companyId: number, customerId: number, startDate?: string, endDate?: string): Promise<{
+    openingBalance: number;
+    totalRevenue: number;
+    totalCost: number;
+    totalDebits: number;
+    totalCredits: number;
+    closingBalance: number;
+    lines: CustomerStatementLine[];
+  }> {
+    const customer = await this.getCustomer(customerId);
+    if (!customer) throw new Error('Customer not found');
+
+    const lines = await this.getCustomerStatementLines(companyId, customerId, startDate, endDate);
+    
+    const openingBalance = Number(customer.openingBalance || 0);
+    const totalRevenue = lines.reduce((sum, line) => sum + Number(line.revenue), 0);
+    const totalCost = lines.reduce((sum, line) => sum + Number(line.cost), 0);
+    const totalDebits = lines.reduce((sum, line) => sum + Number(line.debitAmount), 0);
+    const totalCredits = lines.reduce((sum, line) => sum + Number(line.creditAmount), 0);
+    
+    // Calculate running balances
+    let runningBalance = openingBalance;
+    const linesWithRunningBalance = lines.map(line => {
+      const nettingBalance = Number(line.revenue) - Number(line.cost);
+      const debitCredit = Number(line.debitAmount) - Number(line.creditAmount);
+      runningBalance += nettingBalance + debitCredit;
+      
+      return {
+        ...line,
+        runningBalance: runningBalance.toFixed(2)
+      };
+    });
+
+    const closingBalance = runningBalance;
+
+    return {
+      openingBalance,
+      totalRevenue,
+      totalCost,
+      totalDebits,
+      totalCredits,
+      closingBalance,
+      lines: linesWithRunningBalance
     };
   }
 }

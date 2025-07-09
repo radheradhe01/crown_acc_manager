@@ -11,7 +11,9 @@ import {
   insertInvoiceSchema,
   insertBillSchema,
   insertExpenseCategorySchema,
-  insertBankStatementUploadSchema
+  insertBankStatementUploadSchema,
+  insertRevenueUploadSchema,
+  insertCustomerStatementLineSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -415,6 +417,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching balance sheet report:", error);
       res.status(500).json({ message: "Failed to fetch balance sheet report" });
+    }
+  });
+
+  // Revenue Upload routes
+  app.get("/api/companies/:companyId/revenue-uploads", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const uploads = await storage.getRevenueUploads(companyId);
+      res.json(uploads);
+    } catch (error) {
+      console.error("Error fetching revenue uploads:", error);
+      res.status(500).json({ message: "Failed to fetch revenue uploads" });
+    }
+  });
+
+  app.get("/api/revenue-uploads/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const upload = await storage.getRevenueUpload(id);
+      if (!upload) {
+        return res.status(404).json({ message: "Revenue upload not found" });
+      }
+      res.json(upload);
+    } catch (error) {
+      console.error("Error fetching revenue upload:", error);
+      res.status(500).json({ message: "Failed to fetch revenue upload" });
+    }
+  });
+
+  app.post("/api/revenue-uploads", async (req, res) => {
+    try {
+      const validatedData = insertRevenueUploadSchema.parse(req.body);
+      const upload = await storage.createRevenueUpload(validatedData);
+      res.status(201).json(upload);
+    } catch (error) {
+      console.error("Error creating revenue upload:", error);
+      res.status(400).json({ message: "Failed to create revenue upload" });
+    }
+  });
+
+  app.put("/api/revenue-uploads/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertRevenueUploadSchema.partial().parse(req.body);
+      const upload = await storage.updateRevenueUpload(id, validatedData);
+      res.json(upload);
+    } catch (error) {
+      console.error("Error updating revenue upload:", error);
+      res.status(400).json({ message: "Failed to update revenue upload" });
+    }
+  });
+
+  app.post("/api/revenue-uploads/:id/process", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { csvData } = req.body;
+      
+      if (!csvData || !Array.isArray(csvData)) {
+        return res.status(400).json({ message: "CSV data is required" });
+      }
+      
+      await storage.processRevenueUpload(id, csvData);
+      res.json({ message: "Revenue upload processed successfully" });
+    } catch (error) {
+      console.error("Error processing revenue upload:", error);
+      res.status(500).json({ message: "Failed to process revenue upload" });
+    }
+  });
+
+  // Customer Statement Lines routes
+  app.get("/api/companies/:companyId/customers/:customerId/statement-lines", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const customerId = parseInt(req.params.customerId);
+      const { startDate, endDate } = req.query;
+      
+      const lines = await storage.getCustomerStatementLines(
+        companyId,
+        customerId,
+        startDate as string,
+        endDate as string
+      );
+      res.json(lines);
+    } catch (error) {
+      console.error("Error fetching customer statement lines:", error);
+      res.status(500).json({ message: "Failed to fetch customer statement lines" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/customers/:customerId/statement-summary", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const customerId = parseInt(req.params.customerId);
+      const { startDate, endDate } = req.query;
+      
+      const summary = await storage.getCustomerStatementSummary(
+        companyId,
+        customerId,
+        startDate as string,
+        endDate as string
+      );
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching customer statement summary:", error);
+      res.status(500).json({ message: "Failed to fetch customer statement summary" });
+    }
+  });
+
+  app.get("/api/customer-statement-lines/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const line = await storage.getCustomerStatementLine(id);
+      if (!line) {
+        return res.status(404).json({ message: "Customer statement line not found" });
+      }
+      res.json(line);
+    } catch (error) {
+      console.error("Error fetching customer statement line:", error);
+      res.status(500).json({ message: "Failed to fetch customer statement line" });
+    }
+  });
+
+  app.post("/api/customer-statement-lines", async (req, res) => {
+    try {
+      const validatedData = insertCustomerStatementLineSchema.parse(req.body);
+      const line = await storage.createCustomerStatementLine(validatedData);
+      res.status(201).json(line);
+    } catch (error) {
+      console.error("Error creating customer statement line:", error);
+      res.status(400).json({ message: "Failed to create customer statement line" });
+    }
+  });
+
+  app.put("/api/customer-statement-lines/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertCustomerStatementLineSchema.partial().parse(req.body);
+      const line = await storage.updateCustomerStatementLine(id, validatedData);
+      res.json(line);
+    } catch (error) {
+      console.error("Error updating customer statement line:", error);
+      res.status(400).json({ message: "Failed to update customer statement line" });
+    }
+  });
+
+  app.delete("/api/customer-statement-lines/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomerStatementLine(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting customer statement line:", error);
+      res.status(500).json({ message: "Failed to delete customer statement line" });
     }
   });
 

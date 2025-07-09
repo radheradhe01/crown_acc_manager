@@ -1,147 +1,251 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, Edit, Eye } from "lucide-react";
-import { Header } from "@/components/layout/header";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { RevenueFormModal } from "@/components/modals/revenue-form-modal";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentCompany } from "@/hooks/use-current-company";
-import { formatCurrency, formatDate } from "@/lib/accounting-utils";
-import type { Invoice } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Upload, FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock } from "lucide-react";
+import { format } from "date-fns";
+import { RevenueUploadModal } from "@/components/modals/revenue-upload-modal";
+import { useToast } from "@/hooks/use-toast";
+import type { RevenueUpload } from "@shared/schema";
 
 export default function Revenue() {
   const { currentCompany } = useCurrentCompany();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingInvoice, setEditingInvoice] = useState<Invoice | undefined>();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "invoices"],
+  const { data: revenueUploads, isLoading } = useQuery({
+    queryKey: ["/api/companies", currentCompany?.id, "revenue-uploads"],
     enabled: !!currentCompany?.id,
   });
 
-  const handleEdit = (invoice: Invoice) => {
-    setEditingInvoice(invoice);
-    setIsModalOpen(true);
-  };
+  const processUploadMutation = useMutation({
+    mutationFn: async ({ uploadId, csvData }: { uploadId: number; csvData: any[] }) => {
+      return await apiRequest(`/api/revenue-uploads/${uploadId}/process`, {
+        method: "POST",
+        body: { csvData },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/companies", currentCompany?.id, "revenue-uploads"] 
+      });
+      toast({
+        title: "Success",
+        description: "Revenue upload processed successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to process revenue upload",
+        variant: "destructive",
+      });
+    },
+  });
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingInvoice(undefined);
-  };
-
-  const getStatusColor = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case "PAID":
-        return "bg-green-100 text-green-800";
-      case "OVERDUE":
-        return "bg-red-100 text-red-800";
-      case "CANCELLED":
-        return "bg-gray-100 text-gray-800";
+      case "UPLOADED":
+        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Uploaded</Badge>;
+      case "PROCESSED":
+        return <Badge variant="default"><CheckCircle className="h-3 w-3 mr-1" />Processed</Badge>;
+      case "FAILED":
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
       default:
-        return "bg-yellow-100 text-yellow-800";
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const handleReprocess = async (upload: RevenueUpload) => {
+    if (!upload.csvData) {
+      toast({
+        title: "Error",
+        description: "No CSV data available for reprocessing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const csvData = JSON.parse(upload.csvData);
+      await processUploadMutation.mutateAsync({ uploadId: upload.id, csvData });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to parse CSV data",
+        variant: "destructive",
+      });
     }
   };
 
   if (!currentCompany) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="p-6">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Company Selected</h2>
-          <p className="text-gray-600">Please select a company to manage revenue.</p>
+          <h1 className="text-2xl font-bold mb-4">Revenue Management</h1>
+          <p className="text-muted-foreground">Please select a company to view revenue uploads.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <>
-      <Header
-        title="Revenue"
-        description="Manage invoices and track revenue streams"
-        showActions={false}
-      />
-      
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
-            <p className="text-sm text-gray-600">Create and manage customer invoices</p>
-          </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Invoice
-          </Button>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Revenue Management</h1>
+          <p className="text-muted-foreground">
+            Upload and manage revenue data for {currentCompany.name}
+          </p>
         </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          {isLoading ? (
-            <div className="p-8 text-center">
-              <p className="text-gray-500">Loading invoices...</p>
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-gray-500 mb-4">No invoices found</p>
-              <Button onClick={() => setIsModalOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Your First Invoice
-              </Button>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice Number</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Invoice Date</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Paid Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                    <TableCell>{invoice.customerId}</TableCell>
-                    <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                    <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                    <TableCell>{formatCurrency(Number(invoice.amount))}</TableCell>
-                    <TableCell>{formatCurrency(Number(invoice.paidAmount || 0))}</TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(invoice.status)}>
-                        {invoice.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(invoice)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+        <Button onClick={() => setIsModalOpen(true)}>
+          <Upload className="h-4 w-4 mr-2" />
+          Upload Revenue Data
+        </Button>
       </div>
 
-      <RevenueFormModal
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Uploads</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{revenueUploads?.length || 0}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Processed</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {revenueUploads?.filter((u: RevenueUpload) => u.status === "PROCESSED").length || 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Records</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {revenueUploads?.reduce((sum: number, u: RevenueUpload) => sum + (u.processedRows || 0), 0) || 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Revenue Uploads Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Revenue Uploads</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">Loading uploads...</div>
+          ) : !revenueUploads || revenueUploads.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No revenue uploads yet</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Upload your first revenue file to get started
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">File Name</th>
+                    <th className="text-left p-2">Status</th>
+                    <th className="text-left p-2">Records</th>
+                    <th className="text-left p-2">Uploaded</th>
+                    <th className="text-left p-2">Processed</th>
+                    <th className="text-left p-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {revenueUploads.map((upload: RevenueUpload) => (
+                    <tr key={upload.id} className="border-b">
+                      <td className="p-2">
+                        <div className="flex items-center">
+                          <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                          {upload.fileName}
+                        </div>
+                      </td>
+                      <td className="p-2">{getStatusBadge(upload.status)}</td>
+                      <td className="p-2">{upload.processedRows || 0}</td>
+                      <td className="p-2">
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          {format(new Date(upload.createdAt), "MMM d, yyyy")}
+                        </div>
+                      </td>
+                      <td className="p-2">
+                        {upload.processedDate ? (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {format(new Date(upload.processedDate), "MMM d, yyyy")}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <div className="flex gap-2">
+                          {upload.status === "UPLOADED" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReprocess(upload)}
+                              disabled={processUploadMutation.isPending}
+                            >
+                              Process
+                            </Button>
+                          )}
+                          {upload.status === "FAILED" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReprocess(upload)}
+                              disabled={processUploadMutation.isPending}
+                            >
+                              Retry
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Revenue Upload Modal */}
+      <RevenueUploadModal
         isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        invoice={editingInvoice}
+        onClose={() => setIsModalOpen(false)}
+        companyId={currentCompany.id}
+        onUploadSuccess={() => {
+          queryClient.invalidateQueries({ 
+            queryKey: ["/api/companies", currentCompany?.id, "revenue-uploads"] 
+          });
+        }}
       />
-    </>
+    </div>
   );
 }
