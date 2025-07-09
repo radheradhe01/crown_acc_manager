@@ -76,10 +76,13 @@ export function CustomerFormModal({ isOpen, onClose, customer }: CustomerFormMod
   });
 
   const onSubmit = (data: FormData) => {
-    mutation.mutate({
+    // Convert empty date strings to null to avoid database errors
+    const cleanedData = {
       ...data,
       companyId: currentCompany?.id || 0,
-    });
+      openingBalanceDate: data.openingBalanceDate?.trim() || null,
+    };
+    mutation.mutate(cleanedData);
   };
 
   const handleSameAsBilling = (checked: boolean) => {

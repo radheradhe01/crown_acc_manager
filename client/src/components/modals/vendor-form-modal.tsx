@@ -72,10 +72,13 @@ export function VendorFormModal({ isOpen, onClose, vendor }: VendorFormModalProp
   });
 
   const onSubmit = (data: FormData) => {
-    mutation.mutate({
+    // Convert empty date strings to null to avoid database errors
+    const cleanedData = {
       ...data,
       companyId: currentCompany?.id || 0,
-    });
+      openingBalanceDate: data.openingBalanceDate?.trim() || null,
+    };
+    mutation.mutate(cleanedData);
   };
 
   return (
