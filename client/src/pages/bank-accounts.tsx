@@ -34,7 +34,7 @@ export default function BankAccounts() {
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
 
   const { data: bankAccounts = [], isLoading } = useQuery<BankAccount[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "bank-accounts"],
+    queryKey: [`/api/companies/${currentCompany?.id}/bank-accounts`],
     enabled: !!currentCompany?.id,
   });
 
@@ -72,7 +72,9 @@ export default function BankAccounts() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies", currentCompany?.id, "bank-accounts"] });
+      // Invalidate both the specific query and refetch
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-accounts`] });
+      queryClient.refetchQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-accounts`] });
       toast({
         title: "Success",
         description: editingAccount ? "Bank account updated successfully" : "Bank account created successfully",
@@ -93,7 +95,9 @@ export default function BankAccounts() {
       await apiRequest("DELETE", `/api/bank-accounts/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies", currentCompany?.id, "bank-accounts"] });
+      // Invalidate both the specific query and refetch
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-accounts`] });
+      queryClient.refetchQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-accounts`] });
       toast({
         title: "Success",
         description: "Bank account deleted successfully",
