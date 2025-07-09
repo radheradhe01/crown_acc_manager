@@ -77,11 +77,12 @@ export function RevenueUploadModal({
 
   const createUploadMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      return await apiRequest("POST", "/api/revenue-uploads", data);
+      const response = await apiRequest("POST", "/api/revenue-uploads", data);
+      return await response.json();
     },
     onSuccess: (upload) => {
       // Auto-process the upload if CSV data is available
-      if (csvPreview.length > 0) {
+      if (csvPreview.length > 0 && upload.id) {
         processUploadMutation.mutate({
           uploadId: upload.id,
           csvData: csvPreview,
@@ -123,7 +124,8 @@ export function RevenueUploadModal({
 
   const createCustomerMutation = useMutation({
     mutationFn: async (customerData: { name: string; companyId: number }) => {
-      return await apiRequest("POST", "/api/customers", customerData);
+      const response = await apiRequest("POST", "/api/customers", customerData);
+      return await response.json();
     },
     onSuccess: () => {
       // Invalidate customers query to refetch updated list

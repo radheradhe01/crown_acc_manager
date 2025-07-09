@@ -954,16 +954,24 @@ export class DatabaseStorage implements IStorage {
         }
 
         // Create revenue statement line
-        const nettingBalance = Number(row.revenue || 0) - Number(row.cost || 0);
+        const revenue = Number(row.revenue || 0);
+        const cost = Number(row.cost || 0);
+        const nettingBalance = revenue - cost;
+        
+        // Parse date properly
+        const lineDate = new Date(row.date);
+        if (isNaN(lineDate.getTime())) {
+          throw new Error(`Invalid date format: ${row.date}`);
+        }
         
         await db.insert(customerStatementLines).values({
           companyId: upload.companyId,
           customerId: customer[0].id,
-          lineDate: row.date,
+          lineDate: lineDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
           lineType: 'REVENUE',
           description: `Revenue entry from ${upload.fileName}`,
-          revenue: row.revenue || '0.00',
-          cost: row.cost || '0.00',
+          revenue: revenue.toFixed(2),
+          cost: cost.toFixed(2),
           nettingBalance: nettingBalance.toFixed(2),
           debitAmount: '0.00',
           creditAmount: '0.00',
