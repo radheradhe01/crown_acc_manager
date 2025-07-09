@@ -94,8 +94,10 @@ export const bankAccounts = pgTable("bank_accounts", {
   accountName: text("account_name").notNull(),
   accountNumber: text("account_number"),
   bankName: text("bank_name"),
-  accountType: text("account_type").notNull().default("Checking"),
+  accountType: text("account_type").notNull().default("CHECKING"),
+  openingBalance: decimal("opening_balance", { precision: 10, scale: 2 }).default("0.00"),
   currentBalance: decimal("current_balance", { precision: 10, scale: 2 }).default("0.00"),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

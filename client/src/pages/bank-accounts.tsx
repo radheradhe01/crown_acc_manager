@@ -21,6 +21,7 @@ import Header from "@/components/layout/header";
 
 const formSchema = insertBankAccountSchema.extend({
   openingBalance: z.coerce.number().default(0),
+  currentBalance: z.coerce.number().default(0),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -56,8 +57,11 @@ export default function BankAccounts() {
       const accountData = {
         ...data,
         companyId: currentCompany?.id || 0,
-        currentBalance: data.openingBalance, // Set current balance to opening balance for new accounts
+        openingBalance: data.openingBalance.toString(),
+        currentBalance: data.openingBalance.toString(), // Set current balance to opening balance for new accounts
       };
+
+      console.log("Sending account data:", accountData);
 
       if (editingAccount) {
         const response = await apiRequest("PUT", `/api/bank-accounts/${editingAccount.id}`, accountData);
@@ -134,6 +138,8 @@ export default function BankAccounts() {
   };
 
   const onSubmit = (data: FormData) => {
+    console.log("Form submitted with data:", data);
+    console.log("Form errors:", form.formState.errors);
     mutation.mutate(data);
   };
 
