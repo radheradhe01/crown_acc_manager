@@ -189,21 +189,76 @@ export default function BankAccounts() {
         }
       />
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {isLoading ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500">Loading bank accounts...</p>
-          </div>
-        ) : bankAccounts.length === 0 ? (
-          <div className="p-8 text-center">
-            <Building className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <p className="text-gray-500 mb-4">No bank accounts found</p>
-            <Button onClick={() => handleOpenModal()}>
+      <div className="space-y-6">
+        {/* QuickBooks-style action cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <CreditCard className="h-8 w-8 text-blue-600 mr-3" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Connect Bank Account</h3>
+                  <p className="text-sm text-gray-600">Add your bank accounts for automatic transaction import</p>
+                </div>
+              </div>
+            </div>
+            <Button onClick={() => handleOpenModal()} className="w-full">
               <Plus className="mr-2 h-4 w-4" />
-              Add Your First Bank Account
+              Add Bank Account
             </Button>
           </div>
-        ) : (
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Building className="h-8 w-8 text-green-600 mr-3" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Total Accounts</h3>
+                  <p className="text-2xl font-bold text-gray-900">{bankAccounts.length}</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">Active bank accounts connected</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <CreditCard className="h-8 w-8 text-purple-600 mr-3" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Total Balance</h3>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(bankAccounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">Combined account balances</p>
+          </div>
+        </div>
+
+        {/* Accounts List */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">Your Bank Accounts</h3>
+            <p className="text-sm text-gray-600">Manage and connect your financial accounts</p>
+          </div>
+          
+          {isLoading ? (
+            <div className="p-8 text-center">
+              <p className="text-gray-500">Loading bank accounts...</p>
+            </div>
+          ) : bankAccounts.length === 0 ? (
+            <div className="p-8 text-center">
+              <Building className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <p className="text-gray-500 mb-4">No bank accounts found</p>
+              <p className="text-sm text-gray-400 mb-6">Connect your first bank account to get started with transaction management</p>
+              <Button onClick={() => handleOpenModal()} size="lg">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Your First Bank Account
+              </Button>
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -263,7 +318,8 @@ export default function BankAccounts() {
               ))}
             </TableBody>
           </Table>
-        )}
+          )}
+        </div>
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
