@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Edit, Trash2 } from "lucide-react";
-import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -43,12 +42,6 @@ export default function Customers() {
 
   return (
     <>
-      <Header
-        title="Customers"
-        description="Manage your customer relationships and contact information"
-        showActions={false}
-      />
-      
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>

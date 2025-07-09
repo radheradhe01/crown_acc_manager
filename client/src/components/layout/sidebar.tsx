@@ -57,9 +57,9 @@ export function Sidebar() {
             
             return (
               <Link key={item.path} href={item.path}>
-                <a
+                <div
                   className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                    "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer",
                     isActive
                       ? "text-blue-600 bg-blue-50"
                       : "text-gray-700 hover:bg-gray-100"
@@ -67,7 +67,7 @@ export function Sidebar() {
                 >
                   <Icon className="mr-3 h-5 w-5" />
                   {item.label}
-                </a>
+                </div>
               </Link>
             );
           })}
@@ -83,9 +83,9 @@ export function Sidebar() {
             
             return (
               <Link key={item.path} href={item.path}>
-                <a
+                <div
                   className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                    "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer",
                     isActive
                       ? "text-blue-600 bg-blue-50"
                       : "text-gray-700 hover:bg-gray-100"
@@ -93,7 +93,7 @@ export function Sidebar() {
                 >
                   <Icon className="mr-3 h-5 w-5" />
                   {item.label}
-                </a>
+                </div>
               </Link>
             );
           })}

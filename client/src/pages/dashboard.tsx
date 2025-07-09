@@ -1,6 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
 import { useCurrentCompany } from "@/hooks/use-current-company";
-import { Header } from "@/components/layout/header";
 import { MetricsCards } from "@/components/metrics-cards";
 import { RecentTransactions } from "@/components/recent-transactions";
 import { OutstandingCustomers } from "@/components/outstanding-customers";
@@ -21,18 +19,15 @@ export default function Dashboard() {
   }
 
   return (
-    <>
-      <Header />
-      <div className="space-y-8">
-        <MetricsCards />
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <RecentTransactions />
-          <OutstandingCustomers />
-        </div>
-
-        <QuickActions />
+    <div className="space-y-8">
+      <MetricsCards />
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <RecentTransactions />
+        <OutstandingCustomers />
       </div>
-    </>
+
+      <QuickActions />
+    </div>
   );
 }
