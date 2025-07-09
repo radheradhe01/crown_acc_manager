@@ -98,16 +98,16 @@ export default function CustomerStatement() {
                   <SelectValue placeholder={customersLoading ? "Loading customers..." : "Select customer"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {customersLoading ? (
-                    <SelectItem value="" disabled>Loading customers...</SelectItem>
-                  ) : customers && customers.length > 0 ? (
+                  {customers && customers.length > 0 ? (
                     customers.map((customer: Customer) => (
                       <SelectItem key={customer.id} value={customer.id.toString()}>
                         {customer.name}
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>No customers found</SelectItem>
+                    <SelectItem value="no-customers" disabled>
+                      {customersLoading ? "Loading customers..." : "No customers found"}
+                    </SelectItem>
                   )}
                 </SelectContent>
               </Select>
