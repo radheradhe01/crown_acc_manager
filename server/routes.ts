@@ -12,6 +12,7 @@ import {
   insertBillSchema,
   insertExpenseCategorySchema,
   insertBankStatementUploadSchema,
+  insertBankStatementTransactionSchema,
   insertRevenueUploadSchema,
   insertCustomerStatementLineSchema
 } from "@shared/schema";
@@ -570,6 +571,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting customer statement line:", error);
       res.status(500).json({ message: "Failed to delete customer statement line" });
+    }
+  });
+
+  // Bank Statement Transaction routes
+  app.get("/api/companies/:companyId/bank-statement-transactions", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const uploadId = req.query.uploadId ? parseInt(req.query.uploadId as string) : undefined;
+      const transactions = await storage.getBankStatementTransactions(companyId, uploadId);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching bank statement transactions:", error);
+      res.status(500).json({ message: "Failed to fetch bank statement transactions" });
+    }
+  });
+
+  app.get("/api/bank-statement-transactions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transaction = await storage.getBankStatementTransaction(id);
+      if (!transaction) {
+        return res.status(404).json({ message: "Bank statement transaction not found" });
+      }
+      res.json(transaction);
+    } catch (error) {
+      console.error("Error fetching bank statement transaction:", error);
+      res.status(500).json({ message: "Failed to fetch bank statement transaction" });
+    }
+  });
+
+  app.post("/api/bank-statement-transactions", async (req, res) => {
+    try {
+      const validatedData = insertBankStatementTransactionSchema.parse(req.body);
+      const transaction = await storage.createBankStatementTransaction(validatedData);
+      res.status(201).json(transaction);
+    } catch (error) {
+      console.error("Error creating bank statement transaction:", error);
+      res.status(400).json({ message: "Failed to create bank statement transaction" });
+    }
+  });
+
+  app.put("/api/bank-statement-transactions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertBankStatementTransactionSchema.partial().parse(req.body);
+      const transaction = await storage.updateBankStatementTransaction(id, validatedData);
+      res.json(transaction);
+    } catch (error) {
+      console.error("Error updating bank statement transaction:", error);
+      res.status(400).json({ message: "Failed to update bank statement transaction" });
+    }
+  });
+
+  app.delete("/api/bank-statement-transactions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteBankStatementTransaction(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting bank statement transaction:", error);
+      res.status(500).json({ message: "Failed to delete bank statement transaction" });
+    }
+  });
+
+  app.put("/api/bank-statement-transactions/:id/categorize", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { categoryId, customerId, vendorId, notes } = req.body;
+      
+      const transaction = await storage.categorizeBankTransaction(id, {
+        categoryId,
+        customerId,
+        vendorId,
+        notes
+      });
+      res.json(transaction);
+    } catch (error) {
+      console.error("Error categorizing bank statement transaction:", error);
+      res.status(400).json({ message: "Failed to categorize bank statement transaction" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/bank-transactions/suggest-categorization", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const { description, amount } = req.query;
+      
+      if (!description || !amount) {
+        return res.status(400).json({ message: "Description and amount are required" });
+      }
+      
+      const suggestions = await storage.suggestTransactionCategorization(
+        description as string,
+        parseFloat(amount as string),
+        companyId
+      );
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error suggesting categorization:", error);
+      res.status(500).json({ message: "Failed to suggest categorization" });
+    }
+  });
+
+  // Process bank statement upload
+  app.post("/api/bank-statement-uploads/:id/process", async (req, res) => {
+    try {
+      const uploadId = parseInt(req.params.id);
+      const { csvData } = req.body;
+      
+      if (!csvData || !Array.isArray(csvData)) {
+        return res.status(400).json({ message: "CSV data is required" });
+      }
+      
+      await storage.processBankStatementUpload(uploadId, csvData);
+      res.json({ message: "Bank statement processed successfully" });
+    } catch (error) {
+      console.error("Error processing bank statement upload:", error);
+      res.status(400).json({ message: "Failed to process bank statement upload" });
     }
   });
 

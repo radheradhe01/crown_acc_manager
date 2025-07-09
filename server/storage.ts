@@ -8,6 +8,7 @@ import {
   bills,
   expenseCategories,
   bankStatementUploads,
+  bankStatementTransactions,
   chartOfAccounts,
   journalEntries,
   revenueUploads,
@@ -21,6 +22,7 @@ import {
   type Bill,
   type ExpenseCategory,
   type BankStatementUpload,
+  type BankStatementTransaction,
   type ChartOfAccount,
   type JournalEntry,
   type RevenueUpload,
@@ -34,6 +36,7 @@ import {
   type InsertBill,
   type InsertExpenseCategory,
   type InsertBankStatementUpload,
+  type InsertBankStatementTransaction,
   type InsertRevenueUpload,
   type InsertCustomerStatementLine,
 } from "@shared/schema";
@@ -102,6 +105,16 @@ export interface IStorage {
   getBankStatementUpload(id: number): Promise<BankStatementUpload | undefined>;
   createBankStatementUpload(upload: InsertBankStatementUpload): Promise<BankStatementUpload>;
   updateBankStatementUpload(id: number, upload: Partial<InsertBankStatementUpload>): Promise<BankStatementUpload>;
+  processBankStatementUpload(uploadId: number, csvData: any[]): Promise<void>;
+
+  // Bank Statement Transactions
+  getBankStatementTransactions(companyId: number, uploadId?: number): Promise<BankStatementTransaction[]>;
+  getBankStatementTransaction(id: number): Promise<BankStatementTransaction | undefined>;
+  createBankStatementTransaction(transaction: InsertBankStatementTransaction): Promise<BankStatementTransaction>;
+  updateBankStatementTransaction(id: number, transaction: Partial<InsertBankStatementTransaction>): Promise<BankStatementTransaction>;
+  deleteBankStatementTransaction(id: number): Promise<void>;
+  categorizeBankTransaction(id: number, categorization: { categoryId?: number; customerId?: number; vendorId?: number; notes?: string }): Promise<BankStatementTransaction>;
+  suggestTransactionCategorization(description: string, amount: number, companyId: number): Promise<{ customers: any[]; vendors: any[]; categories: any[] }>;
 
   // Chart of Accounts
   getChartOfAccounts(companyId: number): Promise<ChartOfAccount[]>;
@@ -441,6 +454,53 @@ export class DatabaseStorage implements IStorage {
       .where(eq(bankStatementUploads.id, id))
       .returning();
     return updatedUpload;
+  }
+
+  async processBankStatementUpload(uploadId: number, csvData: any[]): Promise<void> {
+    // First, get the upload record
+    const upload = await this.getBankStatementUpload(uploadId);
+    if (!upload) {
+      throw new Error("Upload not found");
+    }
+
+    try {
+      // Process each row of CSV data
+      for (const row of csvData) {
+        // Parse the row data
+        const transactionDate = new Date(row.date).toISOString().split('T')[0];
+        const description = row.description || '';
+        const debitAmount = row.debit ? parseFloat(row.debit.toString()) : 0;
+        const creditAmount = row.credit ? parseFloat(row.credit.toString()) : 0;
+        const runningBalance = row.balance ? parseFloat(row.balance.toString()) : 0;
+
+        // Create bank statement transaction
+        await this.createBankStatementTransaction({
+          companyId: upload.companyId,
+          bankAccountId: upload.bankAccountId,
+          bankStatementUploadId: uploadId,
+          transactionDate,
+          description,
+          debitAmount: debitAmount.toString(),
+          creditAmount: creditAmount.toString(),
+          runningBalance: runningBalance.toString(),
+          isReconciled: false,
+        });
+      }
+
+      // Update upload status
+      await this.updateBankStatementUpload(uploadId, {
+        status: "PROCESSED",
+        processedDate: new Date(),
+        processedRows: csvData.length,
+      });
+    } catch (error) {
+      // Update upload status to failed
+      await this.updateBankStatementUpload(uploadId, {
+        status: "FAILED",
+        errorMessage: error.message,
+      });
+      throw error;
+    }
   }
 
   // Chart of Accounts
@@ -1083,6 +1143,134 @@ export class DatabaseStorage implements IStorage {
       closingBalance,
       lines: linesWithRunningBalance
     };
+  }
+
+  // Bank Statement Transactions
+  async getBankStatementTransactions(companyId: number, uploadId?: number): Promise<BankStatementTransaction[]> {
+    const conditions = [eq(bankStatementTransactions.companyId, companyId)];
+    
+    if (uploadId) {
+      conditions.push(eq(bankStatementTransactions.bankStatementUploadId, uploadId));
+    }
+
+    return await db
+      .select()
+      .from(bankStatementTransactions)
+      .where(and(...conditions))
+      .orderBy(desc(bankStatementTransactions.transactionDate));
+  }
+
+  async getBankStatementTransaction(id: number): Promise<BankStatementTransaction | undefined> {
+    const [transaction] = await db
+      .select()
+      .from(bankStatementTransactions)
+      .where(eq(bankStatementTransactions.id, id));
+    return transaction;
+  }
+
+  async createBankStatementTransaction(transaction: InsertBankStatementTransaction): Promise<BankStatementTransaction> {
+    const [newTransaction] = await db
+      .insert(bankStatementTransactions)
+      .values(transaction)
+      .returning();
+    return newTransaction;
+  }
+
+  async updateBankStatementTransaction(id: number, transaction: Partial<InsertBankStatementTransaction>): Promise<BankStatementTransaction> {
+    const [updatedTransaction] = await db
+      .update(bankStatementTransactions)
+      .set({ ...transaction, updatedAt: new Date() })
+      .where(eq(bankStatementTransactions.id, id))
+      .returning();
+    return updatedTransaction;
+  }
+
+  async deleteBankStatementTransaction(id: number): Promise<void> {
+    await db.delete(bankStatementTransactions).where(eq(bankStatementTransactions.id, id));
+  }
+
+  async categorizeBankTransaction(id: number, categorization: { 
+    categoryId?: number; 
+    customerId?: number; 
+    vendorId?: number; 
+    notes?: string 
+  }): Promise<BankStatementTransaction> {
+    const updateData: Partial<InsertBankStatementTransaction> = {
+      ...categorization,
+      updatedAt: new Date(),
+    };
+
+    const [updatedTransaction] = await db
+      .update(bankStatementTransactions)
+      .set(updateData)
+      .where(eq(bankStatementTransactions.id, id))
+      .returning();
+    
+    return updatedTransaction;
+  }
+
+  async suggestTransactionCategorization(description: string, amount: number, companyId: number): Promise<{
+    customers: any[];
+    vendors: any[];
+    categories: any[];
+  }> {
+    // Simple keyword matching for suggestions
+    const descriptionLower = description.toLowerCase();
+    
+    // Get all customers, vendors, and categories for the company
+    const [allCustomers, allVendors, allCategories] = await Promise.all([
+      this.getCustomers(companyId),
+      this.getVendors(companyId),
+      this.getExpenseCategories(companyId)
+    ]);
+
+    // Filter customers based on name matching
+    const suggestedCustomers = allCustomers.filter(customer => 
+      customer.name.toLowerCase().includes(descriptionLower) ||
+      descriptionLower.includes(customer.name.toLowerCase())
+    );
+
+    // Filter vendors based on name matching
+    const suggestedVendors = allVendors.filter(vendor => 
+      vendor.name.toLowerCase().includes(descriptionLower) ||
+      descriptionLower.includes(vendor.name.toLowerCase())
+    );
+
+    // Filter categories based on name matching or common keywords
+    const suggestedCategories = allCategories.filter(category => {
+      const categoryName = category.name.toLowerCase();
+      return categoryName.includes(descriptionLower) ||
+             descriptionLower.includes(categoryName) ||
+             this.matchCategoryKeywords(descriptionLower, categoryName);
+    });
+
+    return {
+      customers: suggestedCustomers.slice(0, 5), // Limit to top 5
+      vendors: suggestedVendors.slice(0, 5),
+      categories: suggestedCategories.slice(0, 5),
+    };
+  }
+
+  private matchCategoryKeywords(description: string, categoryName: string): boolean {
+    // Define common keyword mappings
+    const keywordMappings = {
+      'rent': ['rent', 'lease', 'property'],
+      'utilities': ['electric', 'gas', 'water', 'internet', 'phone'],
+      'travel': ['hotel', 'flight', 'uber', 'taxi', 'fuel', 'gas'],
+      'office': ['office', 'supplies', 'equipment', 'furniture'],
+      'marketing': ['advertising', 'marketing', 'promotion', 'social media'],
+      'insurance': ['insurance', 'premium', 'coverage'],
+      'legal': ['legal', 'attorney', 'lawyer', 'court'],
+      'accounting': ['accounting', 'bookkeeping', 'tax', 'cpa'],
+    };
+
+    for (const [category, keywords] of Object.entries(keywordMappings)) {
+      if (categoryName.includes(category)) {
+        return keywords.some(keyword => description.includes(keyword));
+      }
+    }
+    
+    return false;
   }
 }
 

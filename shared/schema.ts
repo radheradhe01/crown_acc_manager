@@ -201,7 +201,33 @@ export const bankStatementUploads = pgTable("bank_statement_uploads", {
   totalRows: integer("total_rows"),
   processedRows: integer("processed_rows"),
   errorMessage: text("error_message"),
+  csvData: text("csv_data"), // Store the raw CSV data
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Bank Statement Transactions table - for individual bank statement entries
+export const bankStatementTransactions = pgTable("bank_statement_transactions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  bankAccountId: integer("bank_account_id").references(() => bankAccounts.id).notNull(),
+  bankStatementUploadId: integer("bank_statement_upload_id").references(() => bankStatementUploads.id).notNull(),
+  transactionDate: date("transaction_date").notNull(),
+  description: text("description").notNull(),
+  debitAmount: decimal("debit_amount", { precision: 10, scale: 2 }).default("0.00"),
+  creditAmount: decimal("credit_amount", { precision: 10, scale: 2 }).default("0.00"),
+  runningBalance: decimal("running_balance", { precision: 10, scale: 2 }).default("0.00"),
+  // Categorization fields
+  categoryId: integer("category_id").references(() => expenseCategories.id),
+  customerId: integer("customer_id").references(() => customers.id),
+  vendorId: integer("vendor_id").references(() => vendors.id),
+  suggestedCustomerId: integer("suggested_customer_id").references(() => customers.id),
+  suggestedVendorId: integer("suggested_vendor_id").references(() => vendors.id),
+  suggestedCategoryId: integer("suggested_category_id").references(() => expenseCategories.id),
+  isReconciled: boolean("is_reconciled").default(false),
+  reconciledDate: timestamp("reconciled_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Revenue Uploads table - for uploading revenue sheets
@@ -250,6 +276,7 @@ export const companiesRelations = relations(companies, ({ many }) => ({
   bills: many(bills),
   expenseCategories: many(expenseCategories),
   bankStatementUploads: many(bankStatementUploads),
+  bankStatementTransactions: many(bankStatementTransactions),
   revenueUploads: many(revenueUploads),
   customerStatementLines: many(customerStatementLines),
 }));
@@ -374,6 +401,45 @@ export const customerStatementLinesRelations = relations(customerStatementLines,
   }),
 }));
 
+export const bankStatementTransactionsRelations = relations(bankStatementTransactions, ({ one }) => ({
+  company: one(companies, {
+    fields: [bankStatementTransactions.companyId],
+    references: [companies.id],
+  }),
+  bankAccount: one(bankAccounts, {
+    fields: [bankStatementTransactions.bankAccountId],
+    references: [bankAccounts.id],
+  }),
+  bankStatementUpload: one(bankStatementUploads, {
+    fields: [bankStatementTransactions.bankStatementUploadId],
+    references: [bankStatementUploads.id],
+  }),
+  category: one(expenseCategories, {
+    fields: [bankStatementTransactions.categoryId],
+    references: [expenseCategories.id],
+  }),
+  customer: one(customers, {
+    fields: [bankStatementTransactions.customerId],
+    references: [customers.id],
+  }),
+  vendor: one(vendors, {
+    fields: [bankStatementTransactions.vendorId],
+    references: [vendors.id],
+  }),
+  suggestedCustomer: one(customers, {
+    fields: [bankStatementTransactions.suggestedCustomerId],
+    references: [customers.id],
+  }),
+  suggestedVendor: one(vendors, {
+    fields: [bankStatementTransactions.suggestedVendorId],
+    references: [vendors.id],
+  }),
+  suggestedCategory: one(expenseCategories, {
+    fields: [bankStatementTransactions.suggestedCategoryId],
+    references: [expenseCategories.id],
+  }),
+}));
+
 // Insert schemas
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true, updatedAt: true });
@@ -383,7 +449,8 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({ i
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertExpenseCategorySchema = createInsertSchema(expenseCategories).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertBankStatementUploadSchema = createInsertSchema(bankStatementUploads).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBankStatementUploadSchema = createInsertSchema(bankStatementUploads).omit({ id: true, createdAt: true });
+export const insertBankStatementTransactionSchema = createInsertSchema(bankStatementTransactions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRevenueUploadSchema = createInsertSchema(revenueUploads).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCustomerStatementLineSchema = createInsertSchema(customerStatementLines).omit({ id: true, createdAt: true, updatedAt: true });
 
@@ -397,6 +464,7 @@ export type Invoice = typeof invoices.$inferSelect;
 export type Bill = typeof bills.$inferSelect;
 export type ExpenseCategory = typeof expenseCategories.$inferSelect;
 export type BankStatementUpload = typeof bankStatementUploads.$inferSelect;
+export type BankStatementTransaction = typeof bankStatementTransactions.$inferSelect;
 export type ChartOfAccount = typeof chartOfAccounts.$inferSelect;
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type RevenueUpload = typeof revenueUploads.$inferSelect;
@@ -412,6 +480,7 @@ export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type InsertBill = z.infer<typeof insertBillSchema>;
 export type InsertExpenseCategory = z.infer<typeof insertExpenseCategorySchema>;
 export type InsertBankStatementUpload = z.infer<typeof insertBankStatementUploadSchema>;
+export type InsertBankStatementTransaction = z.infer<typeof insertBankStatementTransactionSchema>;
 export type InsertRevenueUpload = z.infer<typeof insertRevenueUploadSchema>;
 export type InsertCustomerStatementLine = z.infer<typeof insertCustomerStatementLineSchema>;
 
