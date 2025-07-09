@@ -15,7 +15,7 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
 
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "customers"],
+    queryKey: [`/api/companies/${currentCompany?.id}/customers`],
     enabled: !!currentCompany?.id,
   });
 

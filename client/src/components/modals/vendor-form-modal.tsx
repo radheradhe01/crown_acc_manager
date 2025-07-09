@@ -54,7 +54,7 @@ export function VendorFormModal({ isOpen, onClose, vendor }: VendorFormModalProp
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies", currentCompany?.id, "vendors"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/vendors`] });
       toast({
         title: "Success",
         description: `Vendor ${vendor ? 'updated' : 'created'} successfully`,

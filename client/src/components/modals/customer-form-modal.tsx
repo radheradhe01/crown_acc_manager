@@ -58,7 +58,7 @@ export function CustomerFormModal({ isOpen, onClose, customer }: CustomerFormMod
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies", currentCompany?.id, "customers"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/customers`] });
       toast({
         title: "Success",
         description: `Customer ${customer ? 'updated' : 'created'} successfully`,

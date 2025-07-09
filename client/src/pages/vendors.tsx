@@ -15,7 +15,7 @@ export default function Vendors() {
   const [editingVendor, setEditingVendor] = useState<Vendor | undefined>();
 
   const { data: vendors = [], isLoading } = useQuery<Vendor[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "vendors"],
+    queryKey: [`/api/companies/${currentCompany?.id}/vendors`],
     enabled: !!currentCompany?.id,
   });
 
