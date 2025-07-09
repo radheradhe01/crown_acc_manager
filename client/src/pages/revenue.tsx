@@ -5,7 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Upload, FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { RevenueUploadModal } from "@/components/modals/revenue-upload-modal";
 import { useToast } from "@/hooks/use-toast";
@@ -145,6 +145,33 @@ export default function Revenue() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Info Card */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardContent className="pt-6">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <FileText className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-blue-900">
+                <strong>Revenue Data Location:</strong> After uploading and processing your revenue CSV files, 
+                the individual revenue entries will appear in the <strong>Customer Statement</strong> page. 
+                Select a customer to view their revenue entries, costs, and account balance.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-3"
+                onClick={() => window.location.href = '/customer-statement'}
+              >
+                View Customer Statements
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Revenue Uploads Table */}
       <Card>
