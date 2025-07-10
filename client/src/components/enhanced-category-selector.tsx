@@ -98,6 +98,9 @@ export function EnhancedCategorySelector({
   });
 
   const selectedCategory = categories.find(cat => cat.id === selectedCategoryId);
+  
+  // Debug log to see what categories are loaded
+  console.log('Enhanced Category Selector - Categories loaded:', categories.length);
 
   const createCategoryMutation = useMutation({
     mutationFn: async (data: InsertExpenseCategory) => {
@@ -156,9 +159,13 @@ export function EnhancedCategorySelector({
   const selectedDetailTypes = formData.mainAccountType ? 
     ACCOUNT_DETAIL_TYPES[formData.mainAccountType as keyof typeof ACCOUNT_DETAIL_TYPES] || [] : [];
 
-  // Group categories by main account type
+  // Group categories by main account type - normalize the types
   const groupedCategories = categories.reduce((acc, category) => {
-    const type = category.mainAccountType || 'uncategorized';
+    let type = category.mainAccountType || 'uncategorized';
+    // Normalize case variations
+    if (type.toLowerCase() === 'expense' || type.toLowerCase() === 'expenses') {
+      type = 'expenses';
+    }
     if (!acc[type]) {
       acc[type] = [];
     }
@@ -177,15 +184,7 @@ export function EnhancedCategorySelector({
             className="w-full justify-between"
           >
             {selectedCategory ? (
-              <div className="flex items-center space-x-2">
-                <Tag className="h-4 w-4" />
-                <span>{selectedCategory.name}</span>
-                {selectedCategory.mainAccountType && (
-                  <Badge className={cn("text-xs", getAccountTypeColor(selectedCategory.mainAccountType))}>
-                    {getAccountTypeLabel(selectedCategory.mainAccountType)}
-                  </Badge>
-                )}
-              </div>
+              <span>{selectedCategory.name}</span>
             ) : (
               <span className="text-gray-500">{placeholder}</span>
             )}
@@ -197,9 +196,7 @@ export function EnhancedCategorySelector({
             <CommandInput placeholder="Search categories..." />
             <CommandList>
               <CommandEmpty>
-                <div className="text-center py-4">
-                  <p className="text-sm text-gray-500">No categories found.</p>
-                </div>
+                <span className="text-center py-4 text-sm text-gray-500">No categories found.</span>
               </CommandEmpty>
               
               {Object.entries(groupedCategories).map(([type, typeCategories]) => (
