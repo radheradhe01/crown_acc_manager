@@ -555,6 +555,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Customer statements with pagination
+  app.get("/api/companies/:companyId/customer-statements", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const result = await storage.getCustomerStatements(companyId, page, limit);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching customer statements:", error);
+      res.status(500).json({ message: "Failed to fetch customer statements" });
+    }
+  });
+
   // Bank Statement Upload routes
   app.get("/api/companies/:companyId/bank-uploads", async (req, res) => {
     try {

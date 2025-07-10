@@ -12,6 +12,7 @@ import BankAccounts from "@/pages/bank-accounts";
 import Revenue from "@/pages/revenue";
 import Expenses from "@/pages/expenses";
 import CustomerStatement from "@/pages/customer-statement";
+import CustomerStatements from "@/pages/customer-statements";
 import OutstandingBalances from "@/pages/reports/outstanding-balances";
 import GeneralLedger from "@/pages/reports/general-ledger";
 import TrialBalance from "@/pages/reports/trial-balance";
@@ -35,6 +36,7 @@ function Router() {
         <Route path="/revenue" component={Revenue} />
         <Route path="/expenses" component={Expenses} />
         <Route path="/customer-statement" component={CustomerStatement} />
+        <Route path="/customer-statements" component={CustomerStatements} />
         <Route path="/reports/outstanding-balances" component={OutstandingBalances} />
         <Route path="/reports/general-ledger" component={GeneralLedger} />
         <Route path="/reports/trial-balance" component={TrialBalance} />

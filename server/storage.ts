@@ -2092,6 +2092,111 @@ export class DatabaseStorage implements IStorage {
       totalAmount: Number(row.totalAmount || 0),
     }));
   }
+
+  // Customer Statement with Pagination
+  async getCustomerStatements(companyId: number, page: number = 1, limit: number = 10): Promise<{
+    customers: any[],
+    totalCount: number,
+    totalPages: number,
+    currentPage: number
+  }> {
+    const offset = (page - 1) * limit;
+
+    try {
+      // Get total count for pagination
+      const [countResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(eq(customers.companyId, companyId));
+
+      const totalCount = Number(countResult?.count || 0);
+      const totalPages = Math.ceil(totalCount / limit);
+
+      // Get customers with their receivable and payable amounts
+      const customerStatements = await db
+        .select({
+          id: customers.id,
+          name: customers.name,
+          email: customers.email,
+          phone: customers.phone,
+          paymentTerms: customers.paymentTerms,
+          openingBalance: customers.openingBalance,
+          receivableAmount: sql<number>`
+            COALESCE(
+              (SELECT SUM(${invoices.totalAmount})
+               FROM ${invoices}
+               WHERE ${invoices.customerId} = ${customers.id}
+                 AND ${invoices.status} = 'SENT'
+              ), 0
+            )
+          `,
+          paidAmount: sql<number>`
+            COALESCE(
+              (SELECT SUM(${invoices.totalAmount})
+               FROM ${invoices}
+               WHERE ${invoices.customerId} = ${customers.id}
+                 AND ${invoices.status} = 'PAID'
+              ), 0
+            )
+          `,
+          totalInvoiced: sql<number>`
+            COALESCE(
+              (SELECT SUM(${invoices.totalAmount})
+               FROM ${invoices}
+               WHERE ${invoices.customerId} = ${customers.id}
+              ), 0
+            )
+          `,
+          invoiceCount: sql<number>`
+            COALESCE(
+              (SELECT COUNT(*)
+               FROM ${invoices}
+               WHERE ${invoices.customerId} = ${customers.id}
+              ), 0
+            )
+          `,
+          lastInvoiceDate: sql<string>`
+            (SELECT MAX(${invoices.issueDate})
+             FROM ${invoices}
+             WHERE ${invoices.customerId} = ${customers.id}
+            )
+          `
+        })
+        .from(customers)
+        .where(eq(customers.companyId, companyId))
+        .orderBy(customers.name)
+        .limit(limit)
+        .offset(offset);
+
+      const processedCustomers = customerStatements.map(customer => ({
+        ...customer,
+        openingBalance: Number(customer.openingBalance || 0),
+        receivableAmount: Number(customer.receivableAmount || 0),
+        paidAmount: Number(customer.paidAmount || 0),
+        totalInvoiced: Number(customer.totalInvoiced || 0),
+        invoiceCount: Number(customer.invoiceCount || 0),
+        // Calculate outstanding balance (receivables - what's been paid)
+        outstandingBalance: Number(customer.receivableAmount || 0),
+        // Calculate total balance including opening balance
+        totalBalance: Number(customer.openingBalance || 0) + Number(customer.receivableAmount || 0),
+      }));
+
+      return {
+        customers: processedCustomers,
+        totalCount,
+        totalPages,
+        currentPage: page
+      };
+    } catch (error) {
+      console.error('Error fetching customer statements:', error);
+      return {
+        customers: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: page
+      };
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();

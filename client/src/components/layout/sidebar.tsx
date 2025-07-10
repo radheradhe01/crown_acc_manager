@@ -30,6 +30,7 @@ const navigationItems = [
   { path: "/revenue", label: "Revenue", icon: DollarSign },
   { path: "/expenses", label: "Expenses", icon: Receipt },
   { path: "/customer-statement", label: "Customer Statement", icon: User },
+  { path: "/customer-statements", label: "Customer Statements", icon: Users },
   { path: "/categories", label: "Categories", icon: Tags },
   { path: "/user-management", label: "User Management", icon: Shield },
 ];
