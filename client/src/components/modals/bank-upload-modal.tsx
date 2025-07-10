@@ -89,12 +89,13 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
         // Parse CSV
         const transactions = parseBankStatementCSV(fileContent);
         
-        // Create bank statement upload record
+        // Create bank statement upload record with CSV data
         const uploadData = {
           ...data,
           companyId: currentCompany?.id || 0,
           fileName: selectedFile.name,
           totalRows: transactions.length,
+          csvData: transactions, // Include parsed CSV data for processing
         };
 
         const response = await apiRequest("POST", "/api/bank-uploads", uploadData);

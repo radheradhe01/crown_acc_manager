@@ -30,39 +30,36 @@ export default function BankStatements() {
   const { toast } = useToast();
 
   const { data: uploads = [], isLoading } = useQuery<BankStatementUpload[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "bank-uploads"],
+    queryKey: [`/api/companies/${currentCompany?.id}/bank-uploads`],
     enabled: !!currentCompany?.id,
   });
 
   const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery<BankStatementTransaction[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "bank-statement-transactions"],
+    queryKey: [`/api/companies/${currentCompany?.id}/bank-statement-transactions`],
     enabled: !!currentCompany?.id,
   });
 
   const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "customers"],
+    queryKey: [`/api/companies/${currentCompany?.id}/customers`],
     enabled: !!currentCompany?.id,
   });
 
   const { data: vendors = [] } = useQuery<Vendor[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "vendors"],
+    queryKey: [`/api/companies/${currentCompany?.id}/vendors`],
     enabled: !!currentCompany?.id,
   });
 
   const { data: expenseCategories = [] } = useQuery<ExpenseCategory[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "expense-categories"],
+    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`],
     enabled: !!currentCompany?.id,
   });
 
   const categorizeMutation = useMutation({
     mutationFn: async ({ id, categorization }: { id: number; categorization: any }) => {
-      await apiRequest(`/api/bank-statement-transactions/${id}/categorize`, {
-        method: "PUT",
-        body: JSON.stringify(categorization),
-      });
+      await apiRequest("PUT", `/api/bank-statement-transactions/${id}/categorize`, categorization);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies", currentCompany?.id, "bank-statement-transactions"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-statement-transactions`] });
       toast({ title: "Transaction categorized successfully" });
       setCategorizationDialog({ transaction: null, isOpen: false });
     },

@@ -469,8 +469,35 @@ export class DatabaseStorage implements IStorage {
         // Parse the row data
         const transactionDate = new Date(row.date).toISOString().split('T')[0];
         const description = row.description || '';
-        const debitAmount = row.debit ? parseFloat(row.debit.toString()) : 0;
-        const creditAmount = row.credit ? parseFloat(row.credit.toString()) : 0;
+        
+        // Handle different amount field formats
+        let debitAmount = 0;
+        let creditAmount = 0;
+        
+        if (row.debit && row.credit) {
+          // Separate debit/credit columns
+          debitAmount = parseFloat(row.debit.toString()) || 0;
+          creditAmount = parseFloat(row.credit.toString()) || 0;
+        } else if (row.amount) {
+          // Single amount column - determine if it's debit or credit based on sign
+          const amount = parseFloat(row.amount.toString()) || 0;
+          if (amount > 0) {
+            creditAmount = amount;
+          } else {
+            debitAmount = Math.abs(amount);
+          }
+        } else {
+          // Try to find any numeric value
+          const numericValue = parseFloat(row.debit || row.credit || row.amount || '0');
+          if (numericValue !== 0) {
+            if (numericValue > 0) {
+              creditAmount = numericValue;
+            } else {
+              debitAmount = Math.abs(numericValue);
+            }
+          }
+        }
+        
         const runningBalance = row.balance ? parseFloat(row.balance.toString()) : 0;
 
         // Create bank statement transaction

@@ -349,10 +349,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/companies/:companyId/bank-statement-transactions", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const uploadId = req.query.uploadId ? parseInt(req.query.uploadId as string) : undefined;
+      const transactions = await storage.getBankStatementTransactions(companyId, uploadId);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching bank statement transactions:", error);
+      res.status(500).json({ message: "Failed to fetch bank statement transactions" });
+    }
+  });
+
+  app.put("/api/bank-statement-transactions/:id/categorize", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const categorization = req.body;
+      const transaction = await storage.categorizeBankTransaction(id, categorization);
+      res.json(transaction);
+    } catch (error) {
+      console.error("Error categorizing bank transaction:", error);
+      res.status(400).json({ message: "Failed to categorize bank transaction" });
+    }
+  });
+
   app.post("/api/bank-uploads", async (req, res) => {
     try {
-      const validatedData = insertBankStatementUploadSchema.parse(req.body);
+      const { csvData, ...uploadData } = req.body;
+      const validatedData = insertBankStatementUploadSchema.parse(uploadData);
+      
+      // Create the upload record
       const upload = await storage.createBankStatementUpload(validatedData);
+      
+      // Process the CSV data if provided
+      if (csvData && Array.isArray(csvData)) {
+        try {
+          await storage.processBankStatementUpload(upload.id, csvData);
+        } catch (processError) {
+          console.error("Error processing bank statement upload:", processError);
+          // Update upload status to failed
+          await storage.updateBankStatementUpload(upload.id, {
+            status: "FAILED",
+            errorMessage: processError.message,
+          });
+        }
+      }
+      
       res.status(201).json(upload);
     } catch (error) {
       console.error("Error creating bank upload:", error);

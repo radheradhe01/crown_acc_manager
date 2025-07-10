@@ -89,13 +89,24 @@ export function validateCsvStructure(data: any[]): { isValid: boolean; errors: s
 export function validateCSVHeaders(headers: string[]): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
   
-  const requiredHeaders = ['date', 'description', 'amount'];
   const normalizedHeaders = headers.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
   
-  for (const required of requiredHeaders) {
-    if (!normalizedHeaders.includes(required)) {
-      errors.push(`Missing required header: ${required}`);
-    }
+  // Check for required headers
+  if (!normalizedHeaders.includes('date')) {
+    errors.push('Missing required header: date');
+  }
+  
+  if (!normalizedHeaders.includes('description')) {
+    errors.push('Missing required header: description');
+  }
+  
+  // Check for amount columns - either 'amount' or both 'debit' and 'credit'
+  const hasAmount = normalizedHeaders.includes('amount');
+  const hasDebit = normalizedHeaders.includes('debit');
+  const hasCredit = normalizedHeaders.includes('credit');
+  
+  if (!hasAmount && !(hasDebit || hasCredit)) {
+    errors.push('Missing required amount column: either "amount" or "debit/credit" columns');
   }
 
   return { isValid: errors.length === 0, errors };
@@ -138,8 +149,8 @@ function normalizeBankStatementHeader(header: string): string {
     'details': 'description',
     'reference': 'description',
     'amount': 'amount',
-    'debit': 'amount',
-    'credit': 'amount',
+    'debit': 'debit',
+    'credit': 'credit',
     'balance': 'balance',
     'runningbalance': 'balance',
   };
