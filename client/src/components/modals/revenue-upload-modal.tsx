@@ -146,18 +146,8 @@ export function RevenueUploadModal({
     onSuccess: () => {
       // Invalidate customers query to refetch updated list
       queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/customers`] });
-      toast({
-        title: "Success",
-        description: "Customer created successfully",
-      });
     },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to create customer",
-        variant: "destructive",
-      });
-    },
+    // Remove default error handler to prevent duplicate messages
   });
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -238,27 +228,41 @@ export function RevenueUploadModal({
   };
 
   const handleCreateMissingCustomers = async () => {
-    try {
-      // Create all missing customers
-      for (const customerName of missingCustomers) {
-        await createCustomerMutation.mutateAsync({
+    const results = [];
+    const errors = [];
+    
+    for (const customerName of missingCustomers) {
+      try {
+        const result = await createCustomerMutation.mutateAsync({
           name: customerName,
           companyId: companyId,
         });
+        results.push(result);
+      } catch (error) {
+        errors.push(customerName);
+        console.error(`Failed to create customer ${customerName}:`, error);
       }
-      
-      // Reset missing customers state
-      setMissingCustomers([]);
-      setShowCustomerCreation(false);
-      
+    }
+    
+    // Reset missing customers state
+    setMissingCustomers([]);
+    setShowCustomerCreation(false);
+    
+    if (errors.length === 0) {
       toast({
         title: "Success",
-        description: `${missingCustomers.length} customers created successfully`,
+        description: `${results.length} customers created successfully`,
       });
-    } catch (error) {
+    } else if (results.length > 0) {
+      toast({
+        title: "Partial Success",
+        description: `${results.length} customers created, ${errors.length} failed`,
+        variant: "destructive",
+      });
+    } else {
       toast({
         title: "Error",
-        description: "Failed to create some customers",
+        description: "Failed to create customers",
         variant: "destructive",
       });
     }
