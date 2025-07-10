@@ -194,16 +194,15 @@ export function EnhancedCategorySelector({
         <PopoverContent className="w-96 p-0">
           <Command>
             <CommandInput placeholder="Search categories..." />
-            <CommandList>
-              <CommandEmpty>
-                <span className="text-center py-4 text-sm text-gray-500">No categories found.</span>
-              </CommandEmpty>
+            <CommandList className="max-h-[300px] overflow-y-auto">
+              <CommandEmpty>No categories found.</CommandEmpty>
               
               {Object.entries(groupedCategories).map(([type, typeCategories]) => (
                 <CommandGroup key={type} heading={getAccountTypeLabel(type)}>
                   {typeCategories.map((category) => (
                     <CommandItem
                       key={category.id}
+                      value={category.name}
                       onSelect={() => {
                         onCategorySelect(category);
                         setOpen(false);
@@ -211,7 +210,7 @@ export function EnhancedCategorySelector({
                     >
                       <Check className={cn("mr-2 h-4 w-4", selectedCategoryId === category.id ? "opacity-100" : "opacity-0")} />
                       <Tag className="h-4 w-4 mr-2" />
-                      <span>{category.name}</span>
+                      {category.name}
                       {category.detailType && (
                         <span className="ml-2 text-xs text-gray-500">({category.detailType})</span>
                       )}
@@ -220,12 +219,12 @@ export function EnhancedCategorySelector({
                 </CommandGroup>
               ))}
               
-              <div className="border-t">
+              <CommandGroup>
                 <CommandItem onSelect={() => setCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  <span>Create New Category</span>
+                  Create New Category
                 </CommandItem>
-              </div>
+              </CommandGroup>
             </CommandList>
           </Command>
         </PopoverContent>
