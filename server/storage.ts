@@ -232,6 +232,9 @@ export interface IStorage {
 
   // Initialize default roles and permissions
   initializeDefaultRolesAndPermissions(): Promise<void>;
+
+  // Analytics
+  getAnalytics(companyId: number, timeRange: string): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1789,6 +1792,220 @@ export class DatabaseStorage implements IStorage {
           }
         }
       }
+    }
+  }
+
+  // Analytics implementation
+  async getAnalytics(companyId: number, timeRange: string): Promise<any> {
+    try {
+      // Calculate date range based on timeRange parameter
+      const now = new Date();
+      const months = timeRange === '24m' ? 24 : timeRange === '12m' ? 12 : timeRange === '6m' ? 6 : 3;
+      const startDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      // Get summary metrics
+      const [revenueResult] = await db
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} as DECIMAL)), 0)` })
+        .from(invoices)
+        .where(and(
+          eq(invoices.companyId, companyId),
+          gte(invoices.issueDate, startDate.toISOString().split('T')[0]),
+          lte(invoices.issueDate, endDate.toISOString().split('T')[0])
+        ));
+
+      const [expenseResult] = await db
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} as DECIMAL)), 0)` })
+        .from(expenseTransactions)
+        .where(and(
+          eq(expenseTransactions.companyId, companyId),
+          gte(expenseTransactions.transactionDate, startDate.toISOString().split('T')[0]),
+          lte(expenseTransactions.transactionDate, endDate.toISOString().split('T')[0])
+        ));
+
+      const totalRevenue = revenueResult?.total || 0;
+      const totalExpenses = expenseResult?.total || 0;
+      const netProfit = totalRevenue - totalExpenses;
+      const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+      // Get outstanding balances
+      const [outstandingReceivables] = await db
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} as DECIMAL)), 0)` })
+        .from(invoices)
+        .where(and(
+          eq(invoices.companyId, companyId),
+          eq(invoices.status, 'SENT')
+        ));
+
+      const [outstandingPayables] = await db
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${bills.totalAmount} as DECIMAL)), 0)` })
+        .from(bills)
+        .where(and(
+          eq(bills.companyId, companyId),
+          eq(bills.status, 'PENDING')
+        ));
+
+      // Calculate burn rate (average monthly expenses)
+      const monthlyExpenses = totalExpenses / months;
+      const burnRate = monthlyExpenses;
+      const runway = totalRevenue > 0 ? Math.floor(totalRevenue / burnRate) : 0;
+
+      // Get monthly trends
+      const revenueTrends = await db
+        .select({
+          month: sql<string>`DATE_FORMAT(${invoices.issueDate}, '%Y-%m')`,
+          amount: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} as DECIMAL)), 0)`
+        })
+        .from(invoices)
+        .where(and(
+          eq(invoices.companyId, companyId),
+          gte(invoices.issueDate, startDate.toISOString().split('T')[0])
+        ))
+        .groupBy(sql`DATE_FORMAT(${invoices.issueDate}, '%Y-%m')`)
+        .orderBy(sql`DATE_FORMAT(${invoices.issueDate}, '%Y-%m')`);
+
+      const expenseTrends = await db
+        .select({
+          month: sql<string>`DATE_FORMAT(${expenseTransactions.transactionDate}, '%Y-%m')`,
+          amount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} as DECIMAL)), 0)`
+        })
+        .from(expenseTransactions)
+        .where(and(
+          eq(expenseTransactions.companyId, companyId),
+          gte(expenseTransactions.transactionDate, startDate.toISOString().split('T')[0])
+        ))
+        .groupBy(sql`DATE_FORMAT(${expenseTransactions.transactionDate}, '%Y-%m')`)
+        .orderBy(sql`DATE_FORMAT(${expenseTransactions.transactionDate}, '%Y-%m')`);
+
+      // Get category breakdown
+      const categoryBreakdown = await db
+        .select({
+          category: expenseCategories.name,
+          amount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} as DECIMAL)), 0)`
+        })
+        .from(expenseTransactions)
+        .leftJoin(expenseCategories, eq(expenseTransactions.expenseCategoryId, expenseCategories.id))
+        .where(and(
+          eq(expenseTransactions.companyId, companyId),
+          gte(expenseTransactions.transactionDate, startDate.toISOString().split('T')[0])
+        ))
+        .groupBy(expenseCategories.name)
+        .orderBy(sql`SUM(CAST(${expenseTransactions.totalAmount} as DECIMAL)) DESC`);
+
+      const totalCategoryExpenses = categoryBreakdown.reduce((sum, cat) => sum + cat.amount, 0);
+      const categoryBreakdownWithPercentage = categoryBreakdown.map(cat => ({
+        ...cat,
+        percentage: totalCategoryExpenses > 0 ? (cat.amount / totalCategoryExpenses) * 100 : 0
+      }));
+
+      // Generate simple forecasts (linear projection based on recent trends)
+      const forecastMonths = 6;
+      const recentMonths = revenueTrends.slice(-3);
+      const avgRevenueGrowth = recentMonths.length > 1 ? 
+        (recentMonths[recentMonths.length - 1].amount - recentMonths[0].amount) / recentMonths.length : 0;
+      
+      const revenueForecast = Array.from({ length: forecastMonths }, (_, i) => {
+        const futureMonth = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
+        const monthStr = futureMonth.toISOString().slice(0, 7);
+        const baseAmount = recentMonths.length > 0 ? recentMonths[recentMonths.length - 1].amount : 0;
+        return {
+          month: monthStr,
+          projected: Math.max(0, baseAmount + (avgRevenueGrowth * (i + 1))),
+          confidence: Math.max(0.5, 0.9 - (i * 0.1))
+        };
+      });
+
+      // Create alerts based on financial metrics
+      const alerts = [];
+      
+      if (netProfit < 0) {
+        alerts.push({
+          type: 'danger',
+          title: 'Negative Profit Margin',
+          message: `Your expenses exceed revenue by ${Math.abs(netProfit).toFixed(2)}. Consider reducing costs or increasing revenue.`,
+          severity: 'high'
+        });
+      }
+
+      if (runway > 0 && runway < 3) {
+        alerts.push({
+          type: 'warning',
+          title: 'Low Cash Runway',
+          message: `At current burn rate, you have ${runway} months of runway remaining.`,
+          severity: 'high'
+        });
+      }
+
+      if (outstandingReceivables.total > totalRevenue * 0.3) {
+        alerts.push({
+          type: 'warning',
+          title: 'High Outstanding Receivables',
+          message: `${outstandingReceivables.total.toFixed(2)} in outstanding receivables. Consider following up on unpaid invoices.`,
+          severity: 'medium'
+        });
+      }
+
+      return {
+        summary: {
+          totalRevenue,
+          totalExpenses,
+          netProfit,
+          profitMargin,
+          cashFlow: netProfit, // Simplified cash flow
+          outstandingReceivables: outstandingReceivables.total || 0,
+          outstandingPayables: outstandingPayables.total || 0,
+          burnRate,
+          runway
+        },
+        trends: {
+          revenue: revenueTrends,
+          expenses: expenseTrends,
+          profit: revenueTrends.map((rev, i) => ({
+            month: rev.month,
+            amount: rev.amount - (expenseTrends[i]?.amount || 0)
+          })),
+          cashFlow: revenueTrends.map((rev, i) => ({
+            month: rev.month,
+            amount: rev.amount - (expenseTrends[i]?.amount || 0)
+          }))
+        },
+        forecasts: {
+          revenue: revenueForecast,
+          expenses: revenueForecast.map(f => ({ ...f, projected: f.projected * 0.8 })),
+          cashFlow: revenueForecast.map(f => ({ ...f, projected: f.projected * 0.2 }))
+        },
+        categoryBreakdown: categoryBreakdownWithPercentage,
+        alerts
+      };
+    } catch (error) {
+      console.error('Error calculating analytics:', error);
+      // Return default empty analytics structure
+      return {
+        summary: {
+          totalRevenue: 0,
+          totalExpenses: 0,
+          netProfit: 0,
+          profitMargin: 0,
+          cashFlow: 0,
+          outstandingReceivables: 0,
+          outstandingPayables: 0,
+          burnRate: 0,
+          runway: 0
+        },
+        trends: {
+          revenue: [],
+          expenses: [],
+          profit: [],
+          cashFlow: []
+        },
+        forecasts: {
+          revenue: [],
+          expenses: [],
+          cashFlow: []
+        },
+        categoryBreakdown: [],
+        alerts: []
+      };
     }
   }
 }

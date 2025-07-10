@@ -456,6 +456,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Analytics endpoint
+  app.get("/api/companies/:companyId/analytics", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const timeRange = req.query.timeRange as string || "12m";
+      const analytics = await storage.getAnalytics(companyId, timeRange);
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
   // Bank Statement Upload routes
   app.get("/api/companies/:companyId/bank-uploads", async (req, res) => {
     try {
