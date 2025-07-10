@@ -57,45 +57,63 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
         throw new Error("No file selected");
       }
 
-      const fileContent = await selectedFile.text();
-      
-      // Extract headers from the first line
-      const lines = fileContent.trim().split('\n');
-      if (lines.length === 0) {
-        throw new Error("CSV file is empty");
-      }
-      
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      
-      // Validate CSV headers
-      const validation = validateCSVHeaders(headers);
-      if (!validation.isValid) {
-        throw new Error("Invalid CSV format. Required columns: date, description, amount. " + validation.errors.join(', '));
-      }
+      try {
+        // Use FileReader for better browser compatibility
+        const fileContent = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result) {
+              resolve(e.target.result as string);
+            } else {
+              reject(new Error("Failed to read file content"));
+            }
+          };
+          reader.onerror = () => reject(new Error("File reading failed"));
+          reader.readAsText(selectedFile);
+        });
+        
+        // Extract headers from the first line
+        const lines = fileContent.trim().split('\n');
+        if (lines.length === 0) {
+          throw new Error("CSV file is empty");
+        }
+        
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        
+        // Validate CSV headers
+        const validation = validateCSVHeaders(headers);
+        if (!validation.isValid) {
+          throw new Error("Invalid CSV format. Required columns: date, description, amount. " + validation.errors.join(', '));
+        }
 
-      // Parse CSV
-      const transactions = parseBankStatementCSV(fileContent);
-      
-      // Create bank statement upload record
-      const uploadData = {
-        ...data,
-        companyId: currentCompany?.id || 0,
-        fileName: selectedFile.name,
-        totalRows: transactions.length,
-      };
+        // Parse CSV
+        const transactions = parseBankStatementCSV(fileContent);
+        
+        // Create bank statement upload record
+        const uploadData = {
+          ...data,
+          companyId: currentCompany?.id || 0,
+          fileName: selectedFile.name,
+          totalRows: transactions.length,
+        };
 
-      const response = await apiRequest("POST", "/api/bank-uploads", uploadData);
-      return response.json();
+        const response = await apiRequest("POST", "/api/bank-uploads", uploadData);
+        return response.json();
+      } catch (error) {
+        if (error instanceof Error) {
+          throw error;
+        }
+        throw new Error("Failed to process file");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-uploads`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-statement-transactions`] });
       toast({
         title: "Success",
         description: "Bank statement uploaded successfully",
       });
-      onClose();
-      form.reset();
-      setSelectedFile(null);
+      handleCloseModal();
     },
     onError: (error) => {
       toast({
@@ -118,16 +136,42 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
     mutation.mutate(data);
   };
 
+  const handleCloseModal = () => {
+    form.reset();
+    setSelectedFile(null);
+    onClose();
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Validate file type
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        toast({
+          title: "Error",
+          description: "Please select a CSV file",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate file size (10MB limit)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "Error",
+          description: "File size must be less than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       setSelectedFile(file);
       form.setValue("fileName", file.name);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleCloseModal}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Upload Bank Statement</DialogTitle>
@@ -200,7 +244,7 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
           </div>
 
           <div className="flex justify-end space-x-3">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={handleCloseModal}>
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending || !selectedFile}>
