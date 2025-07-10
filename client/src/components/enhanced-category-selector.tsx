@@ -268,7 +268,7 @@ export function EnhancedCategorySelector({
                   {MAIN_ACCOUNT_TYPES.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       <div className="flex items-center space-x-2">
-                        <type.icon className="h-4 w-4" />
+                        <div className={`w-3 h-3 rounded-full ${type.color.split(' ')[0]}`}></div>
                         <span>{type.label}</span>
                       </div>
                     </SelectItem>
