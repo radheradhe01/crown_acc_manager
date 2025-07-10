@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertBankStatementUploadSchema } from "@shared/schema";
 import { useCurrentCompany } from "@/hooks/use-current-company";
-import { parseCSV, validateCSVHeaders } from "@/lib/csv-parser";
+import { parseBankStatementCSV, validateCSVHeaders } from "@/lib/csv-parser";
 import { Upload } from "lucide-react";
 import type { BankAccount, InsertBankStatementUpload } from "@shared/schema";
 import { z } from "zod";
@@ -59,13 +59,22 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
 
       const fileContent = await selectedFile.text();
       
+      // Extract headers from the first line
+      const lines = fileContent.trim().split('\n');
+      if (lines.length === 0) {
+        throw new Error("CSV file is empty");
+      }
+      
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      
       // Validate CSV headers
-      if (!validateCSVHeaders(fileContent)) {
-        throw new Error("Invalid CSV format. Required columns: date, description, amount");
+      const validation = validateCSVHeaders(headers);
+      if (!validation.isValid) {
+        throw new Error("Invalid CSV format. Required columns: date, description, amount. " + validation.errors.join(', '));
       }
 
       // Parse CSV
-      const transactions = parseCSV(fileContent);
+      const transactions = parseBankStatementCSV(fileContent);
       
       // Create bank statement upload record
       const uploadData = {

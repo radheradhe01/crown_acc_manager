@@ -85,7 +85,7 @@ export function validateCsvStructure(data: any[]): { isValid: boolean; errors: s
   return { isValid: errors.length === 0, errors };
 }
 
-// Bank statement CSV validation for backward compatibility
+// Bank statement CSV validation
 export function validateCSVHeaders(headers: string[]): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
   
@@ -99,4 +99,50 @@ export function validateCSVHeaders(headers: string[]): { isValid: boolean; error
   }
 
   return { isValid: errors.length === 0, errors };
+}
+
+// Bank statement CSV parser
+export function parseBankStatementCSV(text: string): any[] {
+  const lines = text.trim().split('\n');
+  if (lines.length === 0) return [];
+
+  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  const data: any[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+    if (values.length === headers.length) {
+      const row: any = {};
+      headers.forEach((header, index) => {
+        // Normalize header names to match expected format
+        const normalizedHeader = normalizeBankStatementHeader(header);
+        row[normalizedHeader] = values[index];
+      });
+      data.push(row);
+    }
+  }
+
+  return data;
+}
+
+function normalizeBankStatementHeader(header: string): string {
+  const normalized = header.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  // Map common variations to standard field names
+  const fieldMap: { [key: string]: string } = {
+    'date': 'date',
+    'transactiondate': 'date',
+    'valuedate': 'date',
+    'description': 'description',
+    'particulars': 'description',
+    'details': 'description',
+    'reference': 'description',
+    'amount': 'amount',
+    'debit': 'amount',
+    'credit': 'amount',
+    'balance': 'balance',
+    'runningbalance': 'balance',
+  };
+
+  return fieldMap[normalized] || header;
 }
