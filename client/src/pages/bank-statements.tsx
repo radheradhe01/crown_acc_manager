@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap } from "lucide-react";
+import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap, Users, Truck } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -362,170 +362,249 @@ function CategorizationDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Categorize Transaction</DialogTitle>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pb-4">
+          <DialogTitle className="text-xl font-semibold">Categorize Transaction</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center space-x-2 mb-2">
-              <Calendar className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium">{formatDate(transaction.transactionDate)}</span>
-            </div>
-            <div className="flex items-center space-x-2 mb-2">
-              <DollarSign className="h-4 w-4 text-gray-500" />
-              <span className="text-sm">
-                {transaction.debitAmount !== "0" && (
-                  <span className="text-red-600 font-medium">
-                    -{formatCurrency(parseFloat(transaction.debitAmount))}
-                  </span>
-                )}
-                {transaction.creditAmount !== "0" && (
-                  <span className="text-green-600 font-medium">
-                    +{formatCurrency(parseFloat(transaction.creditAmount))}
-                  </span>
-                )}
-              </span>
-            </div>
-            <p className="text-sm text-gray-700 mb-2">
-              <strong>Description:</strong> {transaction.description}
-            </p>
-            
-            {/* Smart Suggestions */}
-            {(transaction.suggestedCustomerId || transaction.suggestedVendorId || transaction.suggestedCategoryId) && (
-              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Lightbulb className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-800">Smart Suggestions</span>
+        
+        <div className="space-y-6">
+          {/* Transaction Summary Card */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Calendar className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Date</p>
+                    <p className="font-semibold">{formatDate(transaction.transactionDate)}</p>
+                  </div>
                 </div>
-                <div className="space-y-1 text-sm">
-                  {transaction.suggestedCustomerId && (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-blue-600">Customer:</span>
-                      <span className="font-medium">
-                        {customers.find(c => c.id === transaction.suggestedCustomerId)?.name || 'Unknown'}
-                      </span>
-                    </div>
-                  )}
-                  {transaction.suggestedVendorId && (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-blue-600">Vendor:</span>
-                      <span className="font-medium">
-                        {vendors.find(v => v.id === transaction.suggestedVendorId)?.name || 'Unknown'}
-                      </span>
-                    </div>
-                  )}
-                  {transaction.suggestedCategoryId && (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-blue-600">Category:</span>
-                      <span className="font-medium">
-                        {expenseCategories.find(c => c.id === transaction.suggestedCategoryId)?.name || 'Unknown'}
-                      </span>
-                    </div>
-                  )}
+                
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <DollarSign className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Amount</p>
+                    <p className="font-semibold">
+                      {transaction.debitAmount !== "0" && (
+                        <span className="text-red-600">
+                          -{formatCurrency(parseFloat(transaction.debitAmount))}
+                        </span>
+                      )}
+                      {transaction.creditAmount !== "0" && (
+                        <span className="text-green-600">
+                          +{formatCurrency(parseFloat(transaction.creditAmount))}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Description</p>
+                    <p className="font-semibold text-sm truncate" title={transaction.description}>
+                      {transaction.description}
+                    </p>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="customer">Customer</Label>
-              <Select 
-                value={categorization.customerId} 
-                onValueChange={(value) => setCategorization({...categorization, customerId: value, vendorId: ""})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id.toString()}>
-                      {customer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {transaction.suggestedCustomerId && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setCategorization({...categorization, customerId: transaction.suggestedCustomerId!.toString(), vendorId: ""})}
-                  className="w-full text-blue-600 border-blue-200"
-                >
-                  <Zap className="h-3 w-3 mr-1" />
-                  Use Suggested Customer
-                </Button>
-              )}
-            </div>
+          {/* Smart Suggestions */}
+          {(transaction.suggestedCustomerId || transaction.suggestedVendorId || transaction.suggestedCategoryId) && (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardHeader className="pb-3">
+                <div className="flex items-center space-x-2">
+                  <Lightbulb className="h-5 w-5 text-amber-600" />
+                  <h3 className="font-semibold text-amber-800">Smart Suggestions</h3>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {transaction.suggestedCustomerId && (
+                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                      <div>
+                        <p className="text-sm text-gray-600">Suggested Customer</p>
+                        <p className="font-medium">
+                          {customers.find(c => c.id === transaction.suggestedCustomerId)?.name || 'Unknown'}
+                        </p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setCategorization({...categorization, customerId: transaction.suggestedCustomerId!.toString(), vendorId: ""})}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Zap className="h-3 w-3 mr-1" />
+                        Use
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {transaction.suggestedVendorId && (
+                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                      <div>
+                        <p className="text-sm text-gray-600">Suggested Vendor</p>
+                        <p className="font-medium">
+                          {vendors.find(v => v.id === transaction.suggestedVendorId)?.name || 'Unknown'}
+                        </p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setCategorization({...categorization, vendorId: transaction.suggestedVendorId!.toString(), customerId: ""})}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Zap className="h-3 w-3 mr-1" />
+                        Use
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {transaction.suggestedCategoryId && (
+                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                      <div>
+                        <p className="text-sm text-gray-600">Suggested Category</p>
+                        <p className="font-medium">
+                          {expenseCategories.find(c => c.id === transaction.suggestedCategoryId)?.name || 'Unknown'}
+                        </p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setCategorization({...categorization, categoryId: transaction.suggestedCategoryId!.toString()})}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <Zap className="h-3 w-3 mr-1" />
+                        Use
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-            <div className="space-y-2">
-              <Label htmlFor="vendor">Vendor</Label>
-              <Select 
-                value={categorization.vendorId} 
-                onValueChange={(value) => setCategorization({...categorization, vendorId: value, customerId: ""})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vendor..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {vendors.map((vendor) => (
-                    <SelectItem key={vendor.id} value={vendor.id.toString()}>
-                      {vendor.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {transaction.suggestedVendorId && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setCategorization({...categorization, vendorId: transaction.suggestedVendorId!.toString(), customerId: ""})}
-                  className="w-full text-blue-600 border-blue-200"
-                >
-                  <Zap className="h-3 w-3 mr-1" />
-                  Use Suggested Vendor
-                </Button>
-              )}
-            </div>
+          {/* Categorization Form */}
+          <Card>
+            <CardHeader>
+              <h3 className="font-semibold">Categorization Details</h3>
+              <p className="text-sm text-gray-600">Choose how to categorize this transaction</p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Users className="h-4 w-4 text-green-600" />
+                    <Label htmlFor="customer" className="font-medium">Customer</Label>
+                  </div>
+                  <Select 
+                    value={categorization.customerId} 
+                    onValueChange={(value) => setCategorization({...categorization, customerId: value, vendorId: ""})}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select customer..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id.toString()}>
+                          <div className="flex items-center space-x-2">
+                            <Users className="h-4 w-4 text-green-600" />
+                            <span>{customer.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">For income transactions</p>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="category">Expense Category</Label>
-              <EnhancedCategorySelector
-                selectedCategoryId={categorization.categoryId ? parseInt(categorization.categoryId) : undefined}
-                onCategorySelect={(category) => setCategorization({...categorization, categoryId: category.id.toString()})}
-                placeholder="Select or create category..."
-              />
-              {transaction.suggestedCategoryId && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setCategorization({...categorization, categoryId: transaction.suggestedCategoryId!.toString()})}
-                  className="w-full text-blue-600 border-blue-200"
-                >
-                  <Zap className="h-3 w-3 mr-1" />
-                  Use Suggested Category
-                </Button>
-              )}
-            </div>
-          </div>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Truck className="h-4 w-4 text-orange-600" />
+                    <Label htmlFor="vendor" className="font-medium">Vendor</Label>
+                  </div>
+                  <Select 
+                    value={categorization.vendorId} 
+                    onValueChange={(value) => setCategorization({...categorization, vendorId: value, customerId: ""})}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select vendor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendors.map((vendor) => (
+                        <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                          <div className="flex items-center space-x-2">
+                            <Truck className="h-4 w-4 text-orange-600" />
+                            <span>{vendor.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">For expense transactions</p>
+                </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea 
-              id="notes"
-              placeholder="Add any additional notes..."
-              value={categorization.notes}
-              onChange={(e) => setCategorization({...categorization, notes: e.target.value})}
-            />
-          </div>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Tag className="h-4 w-4 text-blue-600" />
+                    <Label htmlFor="category" className="font-medium">Category</Label>
+                  </div>
+                  <EnhancedCategorySelector
+                    selectedCategoryId={categorization.categoryId ? parseInt(categorization.categoryId) : undefined}
+                    onCategorySelect={(category) => setCategorization({...categorization, categoryId: category.id.toString()})}
+                    placeholder="Select or create category..."
+                    className="h-11"
+                  />
+                  <p className="text-xs text-gray-500">Create new or select existing</p>
+                </div>
+              </div>
 
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={onClose}>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-4 w-4 text-gray-600" />
+                  <Label htmlFor="notes" className="font-medium">Additional Notes</Label>
+                </div>
+                <Textarea 
+                  id="notes"
+                  placeholder="Add any additional notes or details about this transaction..."
+                  value={categorization.notes}
+                  onChange={(e) => setCategorization({...categorization, notes: e.target.value})}
+                  className="min-h-[80px]"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button variant="outline" onClick={onClose} className="px-6">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={isLoading}>
-              {isLoading ? "Saving..." : "Save Categorization"}
+            <Button 
+              onClick={handleSave} 
+              disabled={isLoading}
+              className="px-6 bg-blue-600 hover:bg-blue-700"
+            >
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Save Categorization
+                </>
+              )}
             </Button>
           </div>
         </div>
