@@ -13,7 +13,8 @@ import {
   User,
   TrendingUp,
   Building,
-  CreditCard
+  CreditCard,
+  Shield
 } from "lucide-react";
 import { CompanySelector } from "../company-selector";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ const navigationItems = [
   { path: "/revenue", label: "Revenue", icon: DollarSign },
   { path: "/expenses", label: "Expenses", icon: Receipt },
   { path: "/customer-statement", label: "Customer Statement", icon: User },
+  { path: "/user-management", label: "User Management", icon: Shield },
 ];
 
 const reportItems = [

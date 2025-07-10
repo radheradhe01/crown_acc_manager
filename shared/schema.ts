@@ -10,7 +10,8 @@ import {
   varchar,
   jsonb,
   uuid,
-  index
+  index,
+  unique
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -27,13 +28,16 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table for future auth
+// User storage table for authentication and role management
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().notNull(),
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  password: text("password"), // hashed password for local auth
+  isActive: boolean("is_active").default(true),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -268,6 +272,63 @@ export const customerStatementLines = pgTable("customer_statement_lines", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// User Roles table - defines system roles
+export const userRoles = pgTable("user_roles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  isSystemRole: boolean("is_system_role").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Permissions table - defines granular permissions
+export const permissions = pgTable("permissions", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  resource: text("resource").notNull(), // e.g., 'customers', 'vendors', 'transactions'
+  action: text("action").notNull(), // e.g., 'read', 'write', 'delete', 'manage'
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Role Permissions table - maps roles to permissions
+export const rolePermissions = pgTable("role_permissions", {
+  id: serial("id").primaryKey(),
+  roleId: integer("role_id").references(() => userRoles.id).notNull(),
+  permissionId: integer("permission_id").references(() => permissions.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  uniqueRolePermission: unique().on(table.roleId, table.permissionId),
+}));
+
+
+
+// User Roles table - maps users to roles
+export const userRoleAssignments = pgTable("user_role_assignments", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  roleId: integer("role_id").references(() => userRoles.id).notNull(),
+  companyId: integer("company_id").references(() => companies.id), // null for system-wide roles
+  assignedBy: varchar("assigned_by").references(() => users.id),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").default(true),
+}, (table) => ({
+  uniqueUserRoleCompany: unique().on(table.userId, table.roleId, table.companyId),
+}));
+
+// User Sessions table - for session management
+export const userSessions = pgTable("user_sessions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  sessionToken: text("session_token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const companiesRelations = relations(companies, ({ many }) => ({
   customers: many(customers),
@@ -282,6 +343,7 @@ export const companiesRelations = relations(companies, ({ many }) => ({
   bankStatementTransactions: many(bankStatementTransactions),
   revenueUploads: many(revenueUploads),
   customerStatementLines: many(customerStatementLines),
+  userRoleAssignments: many(userRoleAssignments),
 }));
 
 export const customersRelations = relations(customers, ({ one, many }) => ({
@@ -402,6 +464,64 @@ export const customerStatementLinesRelations = relations(customerStatementLines,
     fields: [customerStatementLines.bankStatementUploadId],
     references: [bankStatementUploads.id],
   }),
+  bankStatementTransaction: one(bankStatementTransactions, {
+    fields: [customerStatementLines.bankStatementTransactionId],
+    references: [bankStatementTransactions.id],
+  }),
+}));
+
+// User and Role Relations
+export const usersRelations = relations(users, ({ many }) => ({
+  roleAssignments: many(userRoleAssignments),
+  sessions: many(userSessions),
+  assignedRoles: many(userRoleAssignments, { relationName: 'assignedBy' }),
+}));
+
+export const userRolesRelations = relations(userRoles, ({ many }) => ({
+  rolePermissions: many(rolePermissions),
+  userAssignments: many(userRoleAssignments),
+}));
+
+export const permissionsRelations = relations(permissions, ({ many }) => ({
+  rolePermissions: many(rolePermissions),
+}));
+
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
+  role: one(userRoles, {
+    fields: [rolePermissions.roleId],
+    references: [userRoles.id],
+  }),
+  permission: one(permissions, {
+    fields: [rolePermissions.permissionId],
+    references: [permissions.id],
+  }),
+}));
+
+export const userRoleAssignmentsRelations = relations(userRoleAssignments, ({ one }) => ({
+  user: one(users, {
+    fields: [userRoleAssignments.userId],
+    references: [users.id],
+  }),
+  role: one(userRoles, {
+    fields: [userRoleAssignments.roleId],
+    references: [userRoles.id],
+  }),
+  company: one(companies, {
+    fields: [userRoleAssignments.companyId],
+    references: [companies.id],
+  }),
+  assignedByUser: one(users, {
+    fields: [userRoleAssignments.assignedBy],
+    references: [users.id],
+    relationName: 'assignedBy',
+  }),
+}));
+
+export const userSessionsRelations = relations(userSessions, ({ one }) => ({
+  user: one(users, {
+    fields: [userSessions.userId],
+    references: [users.id],
+  }),
 }));
 
 export const bankStatementTransactionsRelations = relations(bankStatementTransactions, ({ one }) => ({
@@ -456,6 +576,11 @@ export const insertBankStatementUploadSchema = createInsertSchema(bankStatementU
 export const insertBankStatementTransactionSchema = createInsertSchema(bankStatementTransactions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRevenueUploadSchema = createInsertSchema(revenueUploads).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCustomerStatementLineSchema = createInsertSchema(customerStatementLines).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPermissionSchema = createInsertSchema(permissions).omit({ id: true, createdAt: true });
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({ id: true, createdAt: true });
+export const insertUserRoleAssignmentSchema = createInsertSchema(userRoleAssignments).omit({ id: true, assignedAt: true });
+export const insertUserSessionSchema = createInsertSchema(userSessions).omit({ id: true, createdAt: true });
 
 // Select types
 export type Company = typeof companies.$inferSelect;
@@ -472,6 +597,12 @@ export type ChartOfAccount = typeof chartOfAccounts.$inferSelect;
 export type JournalEntry = typeof journalEntries.$inferSelect;
 export type RevenueUpload = typeof revenueUploads.$inferSelect;
 export type CustomerStatementLine = typeof customerStatementLines.$inferSelect;
+export type UserRole = typeof userRoles.$inferSelect;
+export type Permission = typeof permissions.$inferSelect;
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type UserRoleAssignment = typeof userRoleAssignments.$inferSelect;
+export type UserSession = typeof userSessions.$inferSelect;
+export type User = typeof users.$inferSelect;
 
 // Insert types
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -486,7 +617,10 @@ export type InsertBankStatementUpload = z.infer<typeof insertBankStatementUpload
 export type InsertBankStatementTransaction = z.infer<typeof insertBankStatementTransactionSchema>;
 export type InsertRevenueUpload = z.infer<typeof insertRevenueUploadSchema>;
 export type InsertCustomerStatementLine = z.infer<typeof insertCustomerStatementLineSchema>;
-
-// User types for future auth
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
+export type InsertUserRoleAssignment = z.infer<typeof insertUserRoleAssignmentSchema>;
+export type InsertUserSession = z.infer<typeof insertUserSessionSchema>;
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;

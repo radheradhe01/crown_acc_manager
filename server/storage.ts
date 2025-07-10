@@ -13,6 +13,12 @@ import {
   journalEntries,
   revenueUploads,
   customerStatementLines,
+  users,
+  userRoles,
+  permissions,
+  rolePermissions,
+  userRoleAssignments,
+  userSessions,
   type Company,
   type Customer,
   type Vendor,
@@ -27,6 +33,12 @@ import {
   type JournalEntry,
   type RevenueUpload,
   type CustomerStatementLine,
+  type User,
+  type UserRole,
+  type Permission,
+  type RolePermission,
+  type UserRoleAssignment,
+  type UserSession,
   type InsertCompany,
   type InsertCustomer,
   type InsertVendor,
@@ -39,6 +51,12 @@ import {
   type InsertBankStatementTransaction,
   type InsertRevenueUpload,
   type InsertCustomerStatementLine,
+  type InsertUserRole,
+  type InsertPermission,
+  type InsertRolePermission,
+  type InsertUserRoleAssignment,
+  type InsertUserSession,
+  type UpsertUser,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sum, gte, lte, sql } from "drizzle-orm";
@@ -166,6 +184,44 @@ export interface IStorage {
     closingBalance: number;
     lines: CustomerStatementLine[];
   }>;
+
+  // User Management
+  getUsers(): Promise<User[]>;
+  getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: UpsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<UpsertUser>): Promise<User>;
+  deleteUser(id: string): Promise<void>;
+  upsertUser(user: UpsertUser): Promise<User>;
+
+  // Role Management
+  getRoles(): Promise<UserRole[]>;
+  getRole(id: number): Promise<UserRole | undefined>;
+  createRole(role: InsertUserRole): Promise<UserRole>;
+  updateRole(id: number, role: Partial<InsertUserRole>): Promise<UserRole>;
+  deleteRole(id: number): Promise<void>;
+
+  // Permission Management
+  getPermissions(): Promise<Permission[]>;
+  getPermission(id: number): Promise<Permission | undefined>;
+  createPermission(permission: InsertPermission): Promise<Permission>;
+  updatePermission(id: number, permission: Partial<InsertPermission>): Promise<Permission>;
+  deletePermission(id: number): Promise<void>;
+
+  // Role Permission Management
+  getRolePermissions(roleId: number): Promise<Permission[]>;
+  assignPermissionToRole(roleId: number, permissionId: number): Promise<RolePermission>;
+  removePermissionFromRole(roleId: number, permissionId: number): Promise<void>;
+
+  // User Role Assignment
+  getUserRoles(userId: string, companyId?: number): Promise<UserRole[]>;
+  assignRoleToUser(userId: string, roleId: number, companyId?: number, assignedBy?: string): Promise<UserRoleAssignment>;
+  removeRoleFromUser(userId: string, roleId: number, companyId?: number): Promise<void>;
+  getUserPermissions(userId: string, companyId?: number): Promise<Permission[]>;
+  hasPermission(userId: string, resource: string, action: string, companyId?: number): Promise<boolean>;
+
+  // Initialize default roles and permissions
+  initializeDefaultRolesAndPermissions(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1343,6 +1399,352 @@ export class DatabaseStorage implements IStorage {
     }
     
     return false;
+  }
+
+  // User Management
+  async getUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(users.email);
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async createUser(user: UpsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
+  }
+
+  async updateUser(id: string, user: Partial<UpsertUser>): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ ...user, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  // Role Management
+  async getRoles(): Promise<UserRole[]> {
+    return await db.select().from(userRoles).orderBy(userRoles.name);
+  }
+
+  async getRole(id: number): Promise<UserRole | undefined> {
+    const [role] = await db.select().from(userRoles).where(eq(userRoles.id, id));
+    return role;
+  }
+
+  async createRole(role: InsertUserRole): Promise<UserRole> {
+    const [newRole] = await db.insert(userRoles).values(role).returning();
+    return newRole;
+  }
+
+  async updateRole(id: number, role: Partial<InsertUserRole>): Promise<UserRole> {
+    const [updatedRole] = await db
+      .update(userRoles)
+      .set({ ...role, updatedAt: new Date() })
+      .where(eq(userRoles.id, id))
+      .returning();
+    return updatedRole;
+  }
+
+  async deleteRole(id: number): Promise<void> {
+    await db.delete(userRoles).where(eq(userRoles.id, id));
+  }
+
+  // Permission Management
+  async getPermissions(): Promise<Permission[]> {
+    return await db.select().from(permissions).orderBy(permissions.resource, permissions.action);
+  }
+
+  async getPermission(id: number): Promise<Permission | undefined> {
+    const [permission] = await db.select().from(permissions).where(eq(permissions.id, id));
+    return permission;
+  }
+
+  async createPermission(permission: InsertPermission): Promise<Permission> {
+    const [newPermission] = await db.insert(permissions).values(permission).returning();
+    return newPermission;
+  }
+
+  async updatePermission(id: number, permission: Partial<InsertPermission>): Promise<Permission> {
+    const [updatedPermission] = await db
+      .update(permissions)
+      .set(permission)
+      .where(eq(permissions.id, id))
+      .returning();
+    return updatedPermission;
+  }
+
+  async deletePermission(id: number): Promise<void> {
+    await db.delete(permissions).where(eq(permissions.id, id));
+  }
+
+  // Role Permission Management
+  async getRolePermissions(roleId: number): Promise<Permission[]> {
+    const rolePermissionsList = await db
+      .select({ permission: permissions })
+      .from(rolePermissions)
+      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(eq(rolePermissions.roleId, roleId));
+    
+    return rolePermissionsList.map(rp => rp.permission);
+  }
+
+  async assignPermissionToRole(roleId: number, permissionId: number): Promise<RolePermission> {
+    const [rolePermission] = await db
+      .insert(rolePermissions)
+      .values({ roleId, permissionId })
+      .returning();
+    return rolePermission;
+  }
+
+  async removePermissionFromRole(roleId: number, permissionId: number): Promise<void> {
+    await db
+      .delete(rolePermissions)
+      .where(and(
+        eq(rolePermissions.roleId, roleId),
+        eq(rolePermissions.permissionId, permissionId)
+      ));
+  }
+
+  // User Role Assignment
+  async getUserRoles(userId: string, companyId?: number): Promise<UserRole[]> {
+    const conditions = [eq(userRoleAssignments.userId, userId), eq(userRoleAssignments.isActive, true)];
+    
+    if (companyId) {
+      conditions.push(eq(userRoleAssignments.companyId, companyId));
+    }
+
+    const userRolesList = await db
+      .select({ role: userRoles })
+      .from(userRoleAssignments)
+      .innerJoin(userRoles, eq(userRoleAssignments.roleId, userRoles.id))
+      .where(and(...conditions));
+    
+    return userRolesList.map(ur => ur.role);
+  }
+
+  async assignRoleToUser(userId: string, roleId: number, companyId?: number, assignedBy?: string): Promise<UserRoleAssignment> {
+    const [roleAssignment] = await db
+      .insert(userRoleAssignments)
+      .values({
+        userId,
+        roleId,
+        companyId,
+        assignedBy,
+        isActive: true,
+      })
+      .returning();
+    return roleAssignment;
+  }
+
+  async removeRoleFromUser(userId: string, roleId: number, companyId?: number): Promise<void> {
+    const conditions = [
+      eq(userRoleAssignments.userId, userId),
+      eq(userRoleAssignments.roleId, roleId)
+    ];
+    
+    if (companyId) {
+      conditions.push(eq(userRoleAssignments.companyId, companyId));
+    }
+
+    await db
+      .update(userRoleAssignments)
+      .set({ isActive: false })
+      .where(and(...conditions));
+  }
+
+  async getUserPermissions(userId: string, companyId?: number): Promise<Permission[]> {
+    const userRoles = await this.getUserRoles(userId, companyId);
+    const allPermissions: Permission[] = [];
+    
+    for (const role of userRoles) {
+      const rolePermissions = await this.getRolePermissions(role.id);
+      allPermissions.push(...rolePermissions);
+    }
+    
+    // Remove duplicates
+    const uniquePermissions = allPermissions.filter((permission, index, self) =>
+      index === self.findIndex(p => p.id === permission.id)
+    );
+    
+    return uniquePermissions;
+  }
+
+  async hasPermission(userId: string, resource: string, action: string, companyId?: number): Promise<boolean> {
+    const permissions = await this.getUserPermissions(userId, companyId);
+    return permissions.some(p => p.resource === resource && p.action === action);
+  }
+
+  // Initialize default roles and permissions
+  async initializeDefaultRolesAndPermissions(): Promise<void> {
+    // Define default permissions
+    const defaultPermissions = [
+      // Company permissions
+      { name: 'company.read', resource: 'company', action: 'read', description: 'View company information' },
+      { name: 'company.write', resource: 'company', action: 'write', description: 'Edit company information' },
+      { name: 'company.delete', resource: 'company', action: 'delete', description: 'Delete company' },
+      { name: 'company.manage', resource: 'company', action: 'manage', description: 'Full company management' },
+      
+      // Customer permissions
+      { name: 'customers.read', resource: 'customers', action: 'read', description: 'View customers' },
+      { name: 'customers.write', resource: 'customers', action: 'write', description: 'Edit customers' },
+      { name: 'customers.delete', resource: 'customers', action: 'delete', description: 'Delete customers' },
+      { name: 'customers.manage', resource: 'customers', action: 'manage', description: 'Full customer management' },
+      
+      // Vendor permissions
+      { name: 'vendors.read', resource: 'vendors', action: 'read', description: 'View vendors' },
+      { name: 'vendors.write', resource: 'vendors', action: 'write', description: 'Edit vendors' },
+      { name: 'vendors.delete', resource: 'vendors', action: 'delete', description: 'Delete vendors' },
+      { name: 'vendors.manage', resource: 'vendors', action: 'manage', description: 'Full vendor management' },
+      
+      // Transaction permissions
+      { name: 'transactions.read', resource: 'transactions', action: 'read', description: 'View transactions' },
+      { name: 'transactions.write', resource: 'transactions', action: 'write', description: 'Edit transactions' },
+      { name: 'transactions.delete', resource: 'transactions', action: 'delete', description: 'Delete transactions' },
+      { name: 'transactions.manage', resource: 'transactions', action: 'manage', description: 'Full transaction management' },
+      
+      // Bank statement permissions
+      { name: 'bank_statements.read', resource: 'bank_statements', action: 'read', description: 'View bank statements' },
+      { name: 'bank_statements.write', resource: 'bank_statements', action: 'write', description: 'Upload and categorize bank statements' },
+      { name: 'bank_statements.delete', resource: 'bank_statements', action: 'delete', description: 'Delete bank statements' },
+      { name: 'bank_statements.manage', resource: 'bank_statements', action: 'manage', description: 'Full bank statement management' },
+      
+      // Reports permissions
+      { name: 'reports.read', resource: 'reports', action: 'read', description: 'View reports' },
+      { name: 'reports.generate', resource: 'reports', action: 'generate', description: 'Generate reports' },
+      { name: 'reports.export', resource: 'reports', action: 'export', description: 'Export reports' },
+      
+      // User management permissions
+      { name: 'users.read', resource: 'users', action: 'read', description: 'View users' },
+      { name: 'users.write', resource: 'users', action: 'write', description: 'Edit users' },
+      { name: 'users.delete', resource: 'users', action: 'delete', description: 'Delete users' },
+      { name: 'users.manage', resource: 'users', action: 'manage', description: 'Full user management' },
+      
+      // Role management permissions
+      { name: 'roles.read', resource: 'roles', action: 'read', description: 'View roles' },
+      { name: 'roles.write', resource: 'roles', action: 'write', description: 'Edit roles' },
+      { name: 'roles.delete', resource: 'roles', action: 'delete', description: 'Delete roles' },
+      { name: 'roles.manage', resource: 'roles', action: 'manage', description: 'Full role management' },
+    ];
+
+    // Create permissions if they don't exist
+    for (const permission of defaultPermissions) {
+      const existing = await db.select().from(permissions).where(eq(permissions.name, permission.name));
+      if (existing.length === 0) {
+        await this.createPermission(permission);
+      }
+    }
+
+    // Define default roles
+    const defaultRoles = [
+      {
+        name: 'Super Admin',
+        description: 'Full system access with all permissions',
+        isSystemRole: true,
+        permissions: defaultPermissions.map(p => p.name),
+      },
+      {
+        name: 'Company Admin',
+        description: 'Full access to company data and user management',
+        isSystemRole: false,
+        permissions: [
+          'company.read', 'company.write', 'company.manage',
+          'customers.read', 'customers.write', 'customers.delete', 'customers.manage',
+          'vendors.read', 'vendors.write', 'vendors.delete', 'vendors.manage',
+          'transactions.read', 'transactions.write', 'transactions.delete', 'transactions.manage',
+          'bank_statements.read', 'bank_statements.write', 'bank_statements.delete', 'bank_statements.manage',
+          'reports.read', 'reports.generate', 'reports.export',
+          'users.read', 'users.write', 'users.delete',
+          'roles.read',
+        ],
+      },
+      {
+        name: 'Accountant',
+        description: 'Full access to financial data and transactions',
+        isSystemRole: false,
+        permissions: [
+          'company.read',
+          'customers.read', 'customers.write', 'customers.manage',
+          'vendors.read', 'vendors.write', 'vendors.manage',
+          'transactions.read', 'transactions.write', 'transactions.manage',
+          'bank_statements.read', 'bank_statements.write', 'bank_statements.manage',
+          'reports.read', 'reports.generate', 'reports.export',
+        ],
+      },
+      {
+        name: 'Bookkeeper',
+        description: 'Data entry and basic transaction management',
+        isSystemRole: false,
+        permissions: [
+          'company.read',
+          'customers.read', 'customers.write',
+          'vendors.read', 'vendors.write',
+          'transactions.read', 'transactions.write',
+          'bank_statements.read', 'bank_statements.write',
+          'reports.read',
+        ],
+      },
+      {
+        name: 'Viewer',
+        description: 'Read-only access to financial data',
+        isSystemRole: false,
+        permissions: [
+          'company.read',
+          'customers.read',
+          'vendors.read',
+          'transactions.read',
+          'bank_statements.read',
+          'reports.read',
+        ],
+      },
+    ];
+
+    // Create roles and assign permissions
+    for (const roleData of defaultRoles) {
+      const existing = await db.select().from(userRoles).where(eq(userRoles.name, roleData.name));
+      if (existing.length === 0) {
+        const role = await this.createRole({
+          name: roleData.name,
+          description: roleData.description,
+          isSystemRole: roleData.isSystemRole,
+        });
+
+        // Assign permissions to role
+        for (const permissionName of roleData.permissions) {
+          const [permission] = await db.select().from(permissions).where(eq(permissions.name, permissionName));
+          if (permission) {
+            await this.assignPermissionToRole(role.id, permission.id);
+          }
+        }
+      }
+    }
   }
 }
 
