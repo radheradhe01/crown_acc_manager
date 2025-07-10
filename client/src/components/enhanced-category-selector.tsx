@@ -91,7 +91,7 @@ export function EnhancedCategorySelector({
 
   const createCategoryMutation = useMutation({
     mutationFn: async (data: InsertExpenseCategory) => {
-      return await apiRequest(`/api/companies/${currentCompany?.id}/expense-categories`, "POST", data);
+      return await apiRequest("POST", `/api/companies/${currentCompany?.id}/expense-categories`, data);
     },
     onSuccess: (newCategory) => {
       toast({
