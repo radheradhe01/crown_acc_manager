@@ -212,16 +212,12 @@ export function EnhancedCategorySelector({
                         setOpen(false);
                       }}
                     >
-                      <div className="flex items-center space-x-2 flex-1">
-                        <Tag className="h-4 w-4" />
-                        <span>{category.name}</span>
-                        {category.detailType && (
-                          <Badge variant="outline" className="text-xs">
-                            {category.detailType}
-                          </Badge>
-                        )}
-                      </div>
-                      {selectedCategoryId === category.id && <Check className="h-4 w-4" />}
+                      <Check className={cn("mr-2 h-4 w-4", selectedCategoryId === category.id ? "opacity-100" : "opacity-0")} />
+                      <Tag className="h-4 w-4 mr-2" />
+                      <span>{category.name}</span>
+                      {category.detailType && (
+                        <span className="ml-2 text-xs text-gray-500">({category.detailType})</span>
+                      )}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -230,7 +226,7 @@ export function EnhancedCategorySelector({
               <div className="border-t">
                 <CommandItem onSelect={() => setCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Create New Category
+                  <span>Create New Category</span>
                 </CommandItem>
               </div>
             </CommandList>
