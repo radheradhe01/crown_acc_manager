@@ -396,6 +396,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Expense Transactions routes
+  app.get("/api/companies/:companyId/expense-transactions", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const transactions = await storage.getExpenseTransactions(companyId);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching expense transactions:", error);
+      res.status(500).json({ message: "Failed to fetch expense transactions" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/expense-transactions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transaction = await storage.getExpenseTransaction(id);
+      if (!transaction) {
+        return res.status(404).json({ message: "Expense transaction not found" });
+      }
+      res.json(transaction);
+    } catch (error) {
+      console.error("Error fetching expense transaction:", error);
+      res.status(500).json({ message: "Failed to fetch expense transaction" });
+    }
+  });
+
+  app.post("/api/companies/:companyId/expense-transactions", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const transactionData = { ...req.body, companyId };
+      const transaction = await storage.createExpenseTransaction(transactionData);
+      res.status(201).json(transaction);
+    } catch (error) {
+      console.error("Error creating expense transaction:", error);
+      res.status(500).json({ message: "Failed to create expense transaction" });
+    }
+  });
+
+  app.put("/api/companies/:companyId/expense-transactions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const transaction = await storage.updateExpenseTransaction(id, req.body);
+      res.json(transaction);
+    } catch (error) {
+      console.error("Error updating expense transaction:", error);
+      res.status(500).json({ message: "Failed to update expense transaction" });
+    }
+  });
+
+  app.delete("/api/companies/:companyId/expense-transactions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteExpenseTransaction(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting expense transaction:", error);
+      res.status(500).json({ message: "Failed to delete expense transaction" });
+    }
+  });
+
   // Bank Statement Upload routes
   app.get("/api/companies/:companyId/bank-uploads", async (req, res) => {
     try {

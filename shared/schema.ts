@@ -183,6 +183,25 @@ export const bills = pgTable("bills", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Expense Transactions table - for individual expense entries
+export const expenseTransactions = pgTable("expense_transactions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  expenseCategoryId: integer("expense_category_id").references(() => expenseCategories.id).notNull(),
+  transactionDate: date("transaction_date").notNull(),
+  payee: text("payee").notNull(),
+  transactionType: text("transaction_type").notNull().default("EXPENSE"), // EXPENSE, BILL, PAYMENT
+  description: text("description"),
+  amountBeforeTax: decimal("amount_before_tax", { precision: 10, scale: 2 }).notNull(),
+  salesTax: decimal("sales_tax", { precision: 10, scale: 2 }).default("0.00"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  vendorId: integer("vendor_id").references(() => vendors.id),
+  billId: integer("bill_id").references(() => bills.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Expense Categories table
 export const expenseCategories = pgTable("expense_categories", {
   id: serial("id").primaryKey(),
@@ -626,3 +645,7 @@ export type InsertUserRoleAssignment = z.infer<typeof insertUserRoleAssignmentSc
 export type InsertUserSession = z.infer<typeof insertUserSessionSchema>;
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Expense Transaction Types
+export type ExpenseTransaction = typeof expenseTransactions.$inferSelect;
+export type InsertExpenseTransaction = typeof expenseTransactions.$inferInsert;

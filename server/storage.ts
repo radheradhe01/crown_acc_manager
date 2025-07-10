@@ -7,6 +7,7 @@ import {
   invoices,
   bills,
   expenseCategories,
+  expenseTransactions,
   bankStatementUploads,
   bankStatementTransactions,
   chartOfAccounts,
@@ -27,6 +28,7 @@ import {
   type Invoice,
   type Bill,
   type ExpenseCategory,
+  type ExpenseTransaction,
   type BankStatementUpload,
   type BankStatementTransaction,
   type ChartOfAccount,
@@ -47,6 +49,7 @@ import {
   type InsertInvoice,
   type InsertBill,
   type InsertExpenseCategory,
+  type InsertExpenseTransaction,
   type InsertBankStatementUpload,
   type InsertBankStatementTransaction,
   type InsertRevenueUpload,
@@ -114,9 +117,16 @@ export interface IStorage {
   // Expense Categories
   getExpenseCategories(companyId: number): Promise<ExpenseCategory[]>;
   getExpenseCategory(id: number): Promise<ExpenseCategory | undefined>;
-  createExpenseCategory(category: InsertExpenseCategory): Promise<ExpenseCategory>;
-  updateExpenseCategory(id: number, category: Partial<InsertExpenseCategory>): Promise<ExpenseCategory>;
-  deleteExpenseCategory(id: number): Promise<void>;
+  createExpenseCategory(companyId: number, category: InsertExpenseCategory): Promise<ExpenseCategory>;
+  updateExpenseCategory(companyId: number, id: number, category: Partial<InsertExpenseCategory>): Promise<ExpenseCategory>;
+  deleteExpenseCategory(companyId: number, id: number): Promise<void>;
+
+  // Expense Transactions
+  getExpenseTransactions(companyId: number): Promise<ExpenseTransaction[]>;
+  getExpenseTransaction(id: number): Promise<ExpenseTransaction | undefined>;
+  createExpenseTransaction(transaction: InsertExpenseTransaction): Promise<ExpenseTransaction>;
+  updateExpenseTransaction(id: number, transaction: Partial<InsertExpenseTransaction>): Promise<ExpenseTransaction>;
+  deleteExpenseTransaction(id: number): Promise<void>;
 
   // Bank Statement Uploads
   getBankStatementUploads(companyId: number): Promise<BankStatementUpload[]>;
@@ -485,6 +495,38 @@ export class DatabaseStorage implements IStorage {
     await db.update(expenseCategories)
       .set({ isActive: false })
       .where(and(eq(expenseCategories.id, id), eq(expenseCategories.companyId, companyId)));
+  }
+
+  // Expense Transactions
+  async getExpenseTransactions(companyId: number): Promise<ExpenseTransaction[]> {
+    return await db
+      .select()
+      .from(expenseTransactions)
+      .where(eq(expenseTransactions.companyId, companyId))
+      .orderBy(desc(expenseTransactions.transactionDate));
+  }
+
+  async getExpenseTransaction(id: number): Promise<ExpenseTransaction | undefined> {
+    const [transaction] = await db.select().from(expenseTransactions).where(eq(expenseTransactions.id, id));
+    return transaction;
+  }
+
+  async createExpenseTransaction(transaction: InsertExpenseTransaction): Promise<ExpenseTransaction> {
+    const [newTransaction] = await db.insert(expenseTransactions).values(transaction).returning();
+    return newTransaction;
+  }
+
+  async updateExpenseTransaction(id: number, transaction: Partial<InsertExpenseTransaction>): Promise<ExpenseTransaction> {
+    const [updatedTransaction] = await db
+      .update(expenseTransactions)
+      .set({ ...transaction, updatedAt: new Date() })
+      .where(eq(expenseTransactions.id, id))
+      .returning();
+    return updatedTransaction;
+  }
+
+  async deleteExpenseTransaction(id: number): Promise<void> {
+    await db.delete(expenseTransactions).where(eq(expenseTransactions.id, id));
   }
 
   // Bank Statement Uploads
