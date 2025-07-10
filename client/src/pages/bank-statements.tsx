@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap, Users, Truck } from "lucide-react";
+import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap, Users, Truck, Plus } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
