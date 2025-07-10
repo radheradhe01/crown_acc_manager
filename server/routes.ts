@@ -122,6 +122,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/companies/:companyId/customers", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const validatedData = insertCustomerSchema.parse({
+        ...req.body,
+        companyId: companyId
+      });
+      const customer = await storage.createCustomer(validatedData);
+      res.status(201).json(customer);
+    } catch (error) {
+      console.error("Error creating customer:", error);
+      res.status(400).json({ message: "Failed to create customer" });
+    }
+  });
+
   app.get("/api/customers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
