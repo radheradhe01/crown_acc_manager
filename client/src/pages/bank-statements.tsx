@@ -554,9 +554,24 @@ function CategorizationDialog({
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Tag className="h-4 w-4 text-blue-600" />
-                    <Label htmlFor="category" className="font-medium">Category</Label>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Tag className="h-4 w-4 text-blue-600" />
+                      <Label htmlFor="category" className="font-medium">Category</Label>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        // This will be handled by the EnhancedCategorySelector
+                        const event = new CustomEvent('openCreateDialog');
+                        document.dispatchEvent(event);
+                      }}
+                      className="text-xs px-2 py-1 h-auto"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      New Category
+                    </Button>
                   </div>
                   <EnhancedCategorySelector
                     selectedCategoryId={categorization.categoryId ? parseInt(categorization.categoryId) : undefined}

@@ -82,6 +82,16 @@ export function EnhancedCategorySelector({
     detailType: "",
   });
 
+  // Listen for custom event to open create dialog
+  useEffect(() => {
+    const handleOpenCreateDialog = () => {
+      setCreateDialogOpen(true);
+    };
+    
+    document.addEventListener('openCreateDialog', handleOpenCreateDialog);
+    return () => document.removeEventListener('openCreateDialog', handleOpenCreateDialog);
+  }, []);
+
   const { data: categories = [], isLoading } = useQuery({
     queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`],
     enabled: !!currentCompany,
