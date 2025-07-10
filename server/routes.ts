@@ -676,6 +676,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/companies/:companyId/revenue-uploads", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const validatedData = insertRevenueUploadSchema.parse({
+        ...req.body,
+        companyId: companyId
+      });
+      const upload = await storage.createRevenueUpload(validatedData);
+      res.status(201).json(upload);
+    } catch (error) {
+      console.error("Error creating revenue upload:", error);
+      res.status(400).json({ message: "Failed to create revenue upload" });
+    }
+  });
+
   app.get("/api/revenue-uploads/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
