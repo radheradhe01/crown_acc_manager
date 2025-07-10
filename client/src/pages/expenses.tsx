@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatDate } from "@/lib/accounting-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useCurrentCompany } from "@/hooks/use-current-company";
-// Removed EnhancedCategorySelector import since we're using regular Select
+import { EnhancedCategorySelector } from "@/components/enhanced-category-selector";
 import type { ExpenseTransaction, ExpenseCategory, Vendor } from "@shared/schema";
 
 export default function Expenses() {
@@ -325,7 +325,9 @@ function ExpenseFormModal({
     createExpenseMutation.mutate(formData);
   };
 
-  // Remove unused function since we're using regular Select now
+  const handleCategorySelect = (category: ExpenseCategory) => {
+    setFormData(prev => ({ ...prev, expenseCategoryId: category.id }));
+  };
 
   const totalAmount = parseFloat(formData.amountBeforeTax || "0") + parseFloat(formData.salesTax || "0");
 
@@ -378,21 +380,11 @@ function ExpenseFormModal({
 
           <div className="space-y-2">
             <Label htmlFor="category">Expense Category *</Label>
-            <Select 
-              value={formData.expenseCategoryId > 0 ? formData.expenseCategoryId.toString() : ""} 
-              onValueChange={(value) => setFormData(prev => ({ ...prev, expenseCategoryId: parseInt(value) }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select category..." />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id.toString()}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EnhancedCategorySelector
+              selectedCategoryId={formData.expenseCategoryId > 0 ? formData.expenseCategoryId : undefined}
+              onCategorySelect={handleCategorySelect}
+              placeholder="Select or create category..."
+            />
           </div>
 
           <div className="space-y-2">
