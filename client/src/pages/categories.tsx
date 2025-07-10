@@ -196,12 +196,23 @@ export default function Categories() {
   const selectedDetailTypes = formData.mainAccountType ? ACCOUNT_DETAIL_TYPES[formData.mainAccountType as keyof typeof ACCOUNT_DETAIL_TYPES] || [] : [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Categories Management</h1>
-          <p className="text-gray-600">Manage your chart of accounts and expense categories</p>
-        </div>
+    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
+      {/* Header Section */}
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Categories Management</h1>
+            <p className="text-gray-600 mt-2">Manage your chart of accounts and expense categories</p>
+            <div className="flex items-center space-x-4 mt-4">
+              <div className="text-sm text-gray-500">
+                <span className="font-medium text-gray-900">{filteredCategories.length}</span> categories
+              </div>
+              <div className="h-4 w-px bg-gray-300"></div>
+              <div className="text-sm text-gray-500">
+                <span className="font-medium text-gray-900">{MAIN_ACCOUNT_TYPES.length}</span> account types
+              </div>
+            </div>
+          </div>
         <Dialog open={isCreateDialogOpen || !!editingCategory} onOpenChange={(open) => {
           setIsCreateDialogOpen(open);
           if (!open) {
@@ -210,41 +221,50 @@ export default function Categories() {
           }
         }}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Category
+            <Button className="bg-blue-600 hover:bg-blue-700 shadow-md px-6 py-3 h-auto">
+              <Plus className="h-5 w-5 mr-2" />
+              Create New Category
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader className="pb-4">
+              <DialogTitle className="text-2xl font-bold">
                 {editingCategory ? "Edit Category" : "Create New Category"}
               </DialogTitle>
+              <p className="text-gray-600">
+                {editingCategory ? "Update category information" : "Add a new category to your chart of accounts"}
+              </p>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Category Name and Account Type */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="name">Category Name</Label>
+                  <Label htmlFor="name" className="text-sm font-medium">Category Name *</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Enter category name"
+                    className="mt-1"
                     required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="mainAccountType">Main Account Type</Label>
+                  <Label htmlFor="mainAccountType" className="text-sm font-medium">Main Account Type *</Label>
                   <Select
                     value={formData.mainAccountType}
                     onValueChange={(value) => setFormData({ ...formData, mainAccountType: value, detailType: "" })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Select account type" />
                     </SelectTrigger>
                     <SelectContent>
                       {MAIN_ACCOUNT_TYPES.map((type) => (
                         <SelectItem key={type.value} value={type.value}>
-                          {type.label}
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-3 h-3 rounded-full ${type.color.replace('bg-', 'bg-').replace(' text-', '')}`}></div>
+                            <span>{type.label}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -252,15 +272,16 @@ export default function Categories() {
                 </div>
               </div>
               
+              {/* Detail Type */}
               {selectedDetailTypes.length > 0 && (
                 <div>
-                  <Label htmlFor="detailType">Detail Type</Label>
+                  <Label htmlFor="detailType" className="text-sm font-medium">Detail Type</Label>
                   <Select
                     value={formData.detailType}
                     onValueChange={(value) => setFormData({ ...formData, detailType: value })}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select detail type" />
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select detail type (optional)" />
                     </SelectTrigger>
                     <SelectContent>
                       {selectedDetailTypes.map((type) => (
@@ -270,20 +291,51 @@ export default function Categories() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Choose a specific detail type for better categorization
+                  </p>
                 </div>
               )}
               
+              {/* Description */}
               <div>
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description" className="text-sm font-medium">Description</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Add a description for this category..."
                   rows={3}
+                  className="mt-1"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Optional: Add details about when to use this category
+                </p>
               </div>
               
-              <div className="flex justify-end space-x-2">
+              {/* Preview Section */}
+              {(formData.name || formData.mainAccountType) && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-2">Preview</h4>
+                  <div className="flex items-center space-x-3">
+                    <span className="font-medium">{formData.name || "Category Name"}</span>
+                    {formData.mainAccountType && (
+                      <Badge className={getAccountTypeColor(formData.mainAccountType)}>
+                        {getAccountTypeLabel(formData.mainAccountType)}
+                      </Badge>
+                    )}
+                    {formData.detailType && (
+                      <Badge variant="outline">{formData.detailType}</Badge>
+                    )}
+                  </div>
+                  {formData.description && (
+                    <p className="text-sm text-gray-600 mt-2">{formData.description}</p>
+                  )}
+                </div>
+              )}
+              
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
                 <Button
                   type="button"
                   variant="outline"
@@ -292,104 +344,163 @@ export default function Categories() {
                     setEditingCategory(null);
                     resetForm();
                   }}
+                  className="px-6"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={createCategoryMutation.isPending || updateCategoryMutation.isPending}
+                  className="px-6 bg-blue-600 hover:bg-blue-700"
                 >
-                  {editingCategory ? "Update" : "Create"} Category
+                  {createCategoryMutation.isPending || updateCategoryMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      {editingCategory ? "Updating..." : "Creating..."}
+                    </>
+                  ) : (
+                    <>
+                      {editingCategory ? "Update Category" : "Create Category"}
+                    </>
+                  )}
                 </Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
       </div>
-
-      <div className="flex space-x-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Search categories..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-48">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            {MAIN_ACCOUNT_TYPES.map((type) => (
-              <SelectItem key={type.value} value={type.value}>
-                {type.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-600 mt-2">Loading categories...</p>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {filteredCategories.map((category) => (
-            <Card key={category.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="font-semibold text-gray-900">{category.name}</h3>
-                      {category.mainAccountType && (
-                        <Badge className={getAccountTypeColor(category.mainAccountType)}>
-                          {getAccountTypeLabel(category.mainAccountType)}
-                        </Badge>
-                      )}
-                      {category.detailType && (
-                        <Badge variant="outline">{category.detailType}</Badge>
-                      )}
-                    </div>
-                    {category.description && (
-                      <p className="text-gray-600 mt-1">{category.description}</p>
-                    )}
+      {/* Search and Filter Section */}
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="flex space-x-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search categories by name or description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-11"
+            />
+          </div>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-64 h-11">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Filter by account type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Account Types</SelectItem>
+              {MAIN_ACCOUNT_TYPES.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${type.color.replace('bg-', 'bg-').replace(' text-', '')}`}></div>
+                    <span>{type.label}</span>
                   </div>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(category)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(category.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Categories Content */}
+      <div className="bg-white rounded-lg shadow-sm border">
+        {isLoading ? (
+          <div className="text-center py-16">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="text-gray-600 mt-4 text-lg">Loading categories...</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {/* Categories Header */}
+            <div className="p-6 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Categories List</h2>
+                <div className="text-sm text-gray-500">
+                  Showing {filteredCategories.length} of {categories.length} categories
+                </div>
+              </div>
+            </div>
+
+            {/* Categories List */}
+            <div className="divide-y divide-gray-100">
+              {filteredCategories.map((category) => (
+                <div key={category.id} className="p-6 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3">
+                            <h3 className="text-lg font-semibold text-gray-900">{category.name}</h3>
+                            {category.mainAccountType && (
+                              <Badge className={`${getAccountTypeColor(category.mainAccountType)} px-3 py-1 text-xs font-medium`}>
+                                {getAccountTypeLabel(category.mainAccountType)}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-4 mt-2">
+                            {category.detailType && (
+                              <Badge variant="outline" className="text-xs">
+                                {category.detailType}
+                              </Badge>
+                            )}
+                            {category.description && (
+                              <p className="text-sm text-gray-600">{category.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2 ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(category)}
+                        className="px-3 py-2 h-auto"
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(category.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 h-auto"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-          {filteredCategories.length === 0 && (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <p className="text-gray-600">No categories found. Create your first category to get started.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+              ))}
+              
+              {filteredCategories.length === 0 && (
+                <div className="p-16 text-center">
+                  <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <Plus className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No categories found</h3>
+                  <p className="text-gray-600 mb-6">
+                    {searchTerm || filterType !== "all" 
+                      ? "Try adjusting your search or filter criteria." 
+                      : "Create your first category to get started."}
+                  </p>
+                  {(!searchTerm && filterType === "all") && (
+                    <Button
+                      onClick={() => setIsCreateDialogOpen(true)}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First Category
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
