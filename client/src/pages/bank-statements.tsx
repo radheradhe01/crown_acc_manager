@@ -58,7 +58,10 @@ export default function BankStatements() {
 
   const categorizeMutation = useMutation({
     mutationFn: async ({ id, categorization }: { id: number; categorization: any }) => {
-      await apiRequest("PUT", `/api/bank-statement-transactions/${id}/categorize`, categorization);
+      await apiRequest(`/api/bank-statement-transactions/${id}/categorize`, {
+        method: "PUT",
+        body: categorization
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/bank-statement-transactions`] });
