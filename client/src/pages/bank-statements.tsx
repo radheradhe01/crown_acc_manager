@@ -244,20 +244,30 @@ export default function BankStatements() {
                         </TableCell>
                         <TableCell>{formatCurrency(parseFloat(transaction.runningBalance))}</TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
-                            {transaction.customerId ? (
-                              <Badge variant="secondary">Customer</Badge>
-                            ) : transaction.vendorId ? (
-                              <Badge variant="secondary">Vendor</Badge>
-                            ) : transaction.categoryId ? (
-                              <Badge variant="secondary">Category</Badge>
-                            ) : (
-                              <Badge variant="outline">Uncategorized</Badge>
-                            )}
+                          <div className="flex flex-col space-y-1">
+                            <div className="flex items-center space-x-2">
+                              {transaction.customerId ? (
+                                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                  {customers.find(c => c.id === transaction.customerId)?.name || 'Customer'}
+                                </Badge>
+                              ) : transaction.vendorId ? (
+                                <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                                  {vendors.find(v => v.id === transaction.vendorId)?.name || 'Vendor'}
+                                </Badge>
+                              ) : transaction.categoryId ? (
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                  {expenseCategories.find(c => c.id === transaction.categoryId)?.name || 'Category'}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">Uncategorized</Badge>
+                              )}
+                            </div>
                             {(transaction.suggestedCustomerId || transaction.suggestedVendorId || transaction.suggestedCategoryId) && (
-                              <Badge variant="outline" className="text-blue-600 bg-blue-50">
+                              <Badge variant="outline" className="text-blue-600 bg-blue-50 text-xs">
                                 <Lightbulb className="h-3 w-3 mr-1" />
-                                Suggested
+                                {transaction.suggestedCustomerId && customers.find(c => c.id === transaction.suggestedCustomerId)?.name}
+                                {transaction.suggestedVendorId && vendors.find(v => v.id === transaction.suggestedVendorId)?.name}
+                                {transaction.suggestedCategoryId && expenseCategories.find(c => c.id === transaction.suggestedCategoryId)?.name}
                               </Badge>
                             )}
                           </div>

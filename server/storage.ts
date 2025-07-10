@@ -1239,6 +1239,12 @@ export class DatabaseStorage implements IStorage {
     vendorId?: number; 
     notes?: string 
   }): Promise<BankStatementTransaction> {
+    // Get the transaction first
+    const transaction = await this.getBankStatementTransaction(id);
+    if (!transaction) {
+      throw new Error("Transaction not found");
+    }
+
     const updateData: Partial<InsertBankStatementTransaction> = {
       ...categorization,
       updatedAt: new Date(),
@@ -1249,6 +1255,28 @@ export class DatabaseStorage implements IStorage {
       .set(updateData)
       .where(eq(bankStatementTransactions.id, id))
       .returning();
+
+    // If assigned to a customer, create a customer statement line
+    if (categorization.customerId) {
+      const debitAmount = Number(transaction.debitAmount);
+      const creditAmount = Number(transaction.creditAmount);
+      
+      // Create customer statement line
+      await this.createCustomerStatementLine({
+        companyId: transaction.companyId,
+        customerId: categorization.customerId,
+        lineDate: transaction.transactionDate,
+        lineType: 'BANK_TRANSACTION',
+        description: `Bank Transaction: ${transaction.description}`,
+        revenue: '0.00',
+        cost: '0.00',
+        nettingBalance: '0.00',
+        debitAmount: debitAmount.toFixed(2),
+        creditAmount: creditAmount.toFixed(2),
+        runningBalance: (creditAmount - debitAmount).toFixed(2),
+        bankStatementTransactionId: id,
+      });
+    }
     
     return updatedTransaction;
   }

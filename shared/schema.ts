@@ -263,6 +263,7 @@ export const customerStatementLines = pgTable("customer_statement_lines", {
   referenceNumber: text("reference_number"),
   revenueUploadId: integer("revenue_upload_id").references(() => revenueUploads.id),
   bankStatementUploadId: integer("bank_statement_upload_id").references(() => bankStatementUploads.id),
+  bankStatementTransactionId: integer("bank_statement_transaction_id").references(() => bankStatementTransactions.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
