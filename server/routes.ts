@@ -359,14 +359,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/expense-categories", async (req, res) => {
+  app.post("/api/companies/:companyId/expense-categories", async (req, res) => {
     try {
+      const companyId = parseInt(req.params.companyId);
       const validatedData = insertExpenseCategorySchema.parse(req.body);
-      const category = await storage.createExpenseCategory(validatedData);
+      const category = await storage.createExpenseCategory(companyId, validatedData);
       res.status(201).json(category);
     } catch (error) {
       console.error("Error creating expense category:", error);
       res.status(400).json({ message: "Failed to create expense category" });
+    }
+  });
+
+  app.patch("/api/companies/:companyId/expense-categories/:categoryId", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const categoryId = parseInt(req.params.categoryId);
+      const updates = req.body;
+      const category = await storage.updateExpenseCategory(companyId, categoryId, updates);
+      res.json(category);
+    } catch (error) {
+      console.error("Error updating expense category:", error);
+      res.status(500).json({ message: "Failed to update expense category" });
+    }
+  });
+
+  app.delete("/api/companies/:companyId/expense-categories/:categoryId", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const categoryId = parseInt(req.params.categoryId);
+      await storage.deleteExpenseCategory(companyId, categoryId);
+      res.json({ message: "Category deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting expense category:", error);
+      res.status(500).json({ message: "Failed to delete expense category" });
     }
   });
 

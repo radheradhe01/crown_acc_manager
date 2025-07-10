@@ -466,22 +466,25 @@ export class DatabaseStorage implements IStorage {
     return category;
   }
 
-  async createExpenseCategory(category: InsertExpenseCategory): Promise<ExpenseCategory> {
-    const [newCategory] = await db.insert(expenseCategories).values(category).returning();
+  async createExpenseCategory(companyId: number, category: InsertExpenseCategory): Promise<ExpenseCategory> {
+    const categoryData = { ...category, companyId };
+    const [newCategory] = await db.insert(expenseCategories).values(categoryData).returning();
     return newCategory;
   }
 
-  async updateExpenseCategory(id: number, category: Partial<InsertExpenseCategory>): Promise<ExpenseCategory> {
+  async updateExpenseCategory(companyId: number, id: number, category: Partial<InsertExpenseCategory>): Promise<ExpenseCategory> {
     const [updatedCategory] = await db
       .update(expenseCategories)
       .set({ ...category, updatedAt: new Date() })
-      .where(eq(expenseCategories.id, id))
+      .where(and(eq(expenseCategories.id, id), eq(expenseCategories.companyId, companyId)))
       .returning();
     return updatedCategory;
   }
 
-  async deleteExpenseCategory(id: number): Promise<void> {
-    await db.update(expenseCategories).set({ isActive: false }).where(eq(expenseCategories.id, id));
+  async deleteExpenseCategory(companyId: number, id: number): Promise<void> {
+    await db.update(expenseCategories)
+      .set({ isActive: false })
+      .where(and(eq(expenseCategories.id, id), eq(expenseCategories.companyId, companyId)));
   }
 
   // Bank Statement Uploads

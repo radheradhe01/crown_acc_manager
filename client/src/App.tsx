@@ -19,6 +19,7 @@ import ExpenseCategories from "@/pages/reports/expense-categories";
 import ProfitLoss from "@/pages/reports/profit-loss";
 import BalanceSheet from "@/pages/reports/balance-sheet";
 import UserManagement from "@/pages/user-management";
+import Categories from "@/pages/categories";
 import MainLayout from "@/components/layout/main-layout";
 
 function Router() {
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/reports/profit-loss" component={ProfitLoss} />
         <Route path="/reports/balance-sheet" component={BalanceSheet} />
         <Route path="/user-management" component={UserManagement} />
+        <Route path="/categories" component={Categories} />
         <Route component={NotFound} />
       </Switch>
     </MainLayout>

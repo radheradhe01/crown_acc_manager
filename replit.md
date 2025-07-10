@@ -37,6 +37,10 @@ This is a comprehensive accounting software solution built with a modern full-st
   - `bills` - Expense tracking
   - `bank_accounts` - Bank account management
   - `bank_statement_uploads` - Bank statement processing
+  - `expense_categories` - Enhanced with QuickBooks-style account types
+  - `user_roles` - Role-based access control system
+  - `permissions` - Granular permission management
+  - `user_role_assignments` - User-role mapping with company scoping
 
 ## Key Components
 
@@ -53,6 +57,8 @@ This is a comprehensive accounting software solution built with a modern full-st
 
 ### Financial Transaction Processing
 - Bank statement upload and parsing (CSV support)
+- Enhanced transaction categorization with QuickBooks-style account types
+- Smart category suggestions with create-new-category feature
 - Manual transaction entry
 - Invoice and bill management
 - Payment reconciliation
@@ -68,6 +74,8 @@ This is a comprehensive accounting software solution built with a modern full-st
 - Modal-based forms for data entry
 - Data tables with sorting and filtering
 - Dashboard with key metrics and quick actions
+- Enhanced category selector with inline category creation
+- User management interface with role-based permissions
 
 ## Data Flow
 
@@ -138,6 +146,9 @@ This is a comprehensive accounting software solution built with a modern full-st
 
 ```
 Changelog:
+- July 10, 2025. Added advanced category management system with QuickBooks-style account types
+- July 10, 2025. Enhanced bank transaction categorization with create-new-category feature
+- July 10, 2025. Implemented user roles and permissions system with database support
 - July 08, 2025. Initial setup
 ```
 

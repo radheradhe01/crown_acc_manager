@@ -189,6 +189,8 @@ export const expenseCategories = pgTable("expense_categories", {
   companyId: integer("company_id").references(() => companies.id).notNull(),
   name: text("name").notNull(),
   description: text("description"),
+  mainAccountType: text("main_account_type"), // Main account type from QuickBooks classification
+  detailType: text("detail_type"), // Specific detail type within main account type
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

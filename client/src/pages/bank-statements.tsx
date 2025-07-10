@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { BankUploadModal } from "@/components/modals/bank-upload-modal";
+import { EnhancedCategorySelector } from "@/components/enhanced-category-selector";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { formatDate, formatCurrency } from "@/lib/accounting-utils";
 import { apiRequest } from "@/lib/queryClient";
@@ -490,21 +491,11 @@ function CategorizationDialog({
 
             <div className="space-y-2">
               <Label htmlFor="category">Expense Category</Label>
-              <Select 
-                value={categorization.categoryId} 
-                onValueChange={(value) => setCategorization({...categorization, categoryId: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {expenseCategories.map((category) => (
-                    <SelectItem key={category.id} value={category.id.toString()}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EnhancedCategorySelector
+                selectedCategoryId={categorization.categoryId ? parseInt(categorization.categoryId) : undefined}
+                onCategorySelect={(category) => setCategorization({...categorization, categoryId: category.id.toString()})}
+                placeholder="Select or create category..."
+              />
               {transaction.suggestedCategoryId && (
                 <Button 
                   variant="outline" 
