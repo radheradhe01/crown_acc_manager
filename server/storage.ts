@@ -1806,7 +1806,7 @@ export class DatabaseStorage implements IStorage {
 
       // Get summary metrics
       const [revenueResult] = await db
-        .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} as DECIMAL)), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)` })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
@@ -1815,7 +1815,7 @@ export class DatabaseStorage implements IStorage {
         ));
 
       const [expenseResult] = await db
-        .select({ total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} as DECIMAL)), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))), 0)` })
         .from(expenseTransactions)
         .where(and(
           eq(expenseTransactions.companyId, companyId),
@@ -1830,7 +1830,7 @@ export class DatabaseStorage implements IStorage {
 
       // Get outstanding balances
       const [outstandingReceivables] = await db
-        .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} as DECIMAL)), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)` })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
@@ -1838,7 +1838,7 @@ export class DatabaseStorage implements IStorage {
         ));
 
       const [outstandingPayables] = await db
-        .select({ total: sql<number>`COALESCE(SUM(CAST(${bills.totalAmount} as DECIMAL)), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(CAST(${bills.totalAmount} AS DECIMAL(10,2))), 0)` })
         .from(bills)
         .where(and(
           eq(bills.companyId, companyId),
@@ -1850,38 +1850,38 @@ export class DatabaseStorage implements IStorage {
       const burnRate = monthlyExpenses;
       const runway = totalRevenue > 0 ? Math.floor(totalRevenue / burnRate) : 0;
 
-      // Get monthly trends
+      // Get monthly trends - use simpler approach for PostgreSQL
       const revenueTrends = await db
         .select({
-          month: sql<string>`DATE_FORMAT(${invoices.issueDate}, '%Y-%m')`,
-          amount: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} as DECIMAL)), 0)`
+          month: sql<string>`TO_CHAR(${invoices.issueDate}, 'YYYY-MM')`,
+          amount: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)`
         })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
           gte(invoices.issueDate, startDate.toISOString().split('T')[0])
         ))
-        .groupBy(sql`DATE_FORMAT(${invoices.issueDate}, '%Y-%m')`)
-        .orderBy(sql`DATE_FORMAT(${invoices.issueDate}, '%Y-%m')`);
+        .groupBy(sql`TO_CHAR(${invoices.issueDate}, 'YYYY-MM')`)
+        .orderBy(sql`TO_CHAR(${invoices.issueDate}, 'YYYY-MM')`);
 
       const expenseTrends = await db
         .select({
-          month: sql<string>`DATE_FORMAT(${expenseTransactions.transactionDate}, '%Y-%m')`,
-          amount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} as DECIMAL)), 0)`
+          month: sql<string>`TO_CHAR(${expenseTransactions.transactionDate}, 'YYYY-MM')`,
+          amount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))), 0)`
         })
         .from(expenseTransactions)
         .where(and(
           eq(expenseTransactions.companyId, companyId),
           gte(expenseTransactions.transactionDate, startDate.toISOString().split('T')[0])
         ))
-        .groupBy(sql`DATE_FORMAT(${expenseTransactions.transactionDate}, '%Y-%m')`)
-        .orderBy(sql`DATE_FORMAT(${expenseTransactions.transactionDate}, '%Y-%m')`);
+        .groupBy(sql`TO_CHAR(${expenseTransactions.transactionDate}, 'YYYY-MM')`)
+        .orderBy(sql`TO_CHAR(${expenseTransactions.transactionDate}, 'YYYY-MM')`);
 
       // Get category breakdown
       const categoryBreakdown = await db
         .select({
           category: expenseCategories.name,
-          amount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} as DECIMAL)), 0)`
+          amount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))), 0)`
         })
         .from(expenseTransactions)
         .leftJoin(expenseCategories, eq(expenseTransactions.expenseCategoryId, expenseCategories.id))
@@ -1890,7 +1890,7 @@ export class DatabaseStorage implements IStorage {
           gte(expenseTransactions.transactionDate, startDate.toISOString().split('T')[0])
         ))
         .groupBy(expenseCategories.name)
-        .orderBy(sql`SUM(CAST(${expenseTransactions.totalAmount} as DECIMAL)) DESC`);
+        .orderBy(sql`SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))) DESC`);
 
       const totalCategoryExpenses = categoryBreakdown.reduce((sum, cat) => sum + cat.amount, 0);
       const categoryBreakdownWithPercentage = categoryBreakdown.map(cat => ({

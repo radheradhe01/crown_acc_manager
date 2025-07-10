@@ -18,7 +18,7 @@ export default function Revenue() {
   const { toast } = useToast();
 
   const { data: revenueUploads, isLoading } = useQuery({
-    queryKey: ["/api/companies", currentCompany?.id, "revenue-uploads"],
+    queryKey: [`/api/companies/${currentCompany?.id}/revenue-uploads`],
     enabled: !!currentCompany?.id,
   });
 
@@ -31,7 +31,7 @@ export default function Revenue() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ 
-        queryKey: ["/api/companies", currentCompany?.id, "revenue-uploads"] 
+        queryKey: [`/api/companies/${currentCompany?.id}/revenue-uploads`] 
       });
       toast({
         title: "Success",

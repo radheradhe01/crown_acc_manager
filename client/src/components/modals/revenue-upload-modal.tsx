@@ -60,7 +60,7 @@ export function RevenueUploadModal({
 
   // Query existing customers
   const { data: customers = [] } = useQuery({
-    queryKey: ["/api/companies", companyId, "customers"],
+    queryKey: [`/api/companies/${companyId}/customers`],
     enabled: !!companyId,
   });
 
@@ -77,10 +77,17 @@ export function RevenueUploadModal({
 
   const createUploadMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await apiRequest("POST", "/api/revenue-uploads", data);
-      return await response.json();
+      return await apiRequest(`/api/companies/${companyId}/revenue-uploads`, {
+        method: "POST",
+        body: data,
+      });
     },
     onSuccess: (upload) => {
+      // Invalidate revenue uploads query
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/companies/${companyId}/revenue-uploads`] 
+      });
+      
       // Auto-process the upload if CSV data is available
       if (csvPreview.length > 0 && upload.id) {
         processUploadMutation.mutate({
@@ -105,9 +112,16 @@ export function RevenueUploadModal({
 
   const processUploadMutation = useMutation({
     mutationFn: async ({ uploadId, csvData }: { uploadId: number; csvData: any[] }) => {
-      return await apiRequest("POST", `/api/revenue-uploads/${uploadId}/process`, { csvData });
+      return await apiRequest(`/api/revenue-uploads/${uploadId}/process`, {
+        method: "POST",
+        body: { csvData },
+      });
     },
     onSuccess: () => {
+      // Invalidate revenue uploads query
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/companies/${companyId}/revenue-uploads`] 
+      });
       toast({
         title: "Success",
         description: "Revenue upload processed successfully",
@@ -124,12 +138,14 @@ export function RevenueUploadModal({
 
   const createCustomerMutation = useMutation({
     mutationFn: async (customerData: { name: string; companyId: number }) => {
-      const response = await apiRequest("POST", "/api/customers", customerData);
-      return await response.json();
+      return await apiRequest(`/api/companies/${companyId}/customers`, {
+        method: "POST",
+        body: customerData,
+      });
     },
     onSuccess: () => {
       // Invalidate customers query to refetch updated list
-      queryClient.invalidateQueries({ queryKey: ["/api/companies", companyId, "customers"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${companyId}/customers`] });
       toast({
         title: "Success",
         description: "Customer created successfully",
