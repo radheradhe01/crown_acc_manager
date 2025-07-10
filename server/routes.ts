@@ -485,6 +485,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       const categorization = req.body;
       const transaction = await storage.categorizeBankTransaction(id, categorization);
+
+      // If this is an expense transaction (has categoryId), create an expense transaction record
+      if (categorization.categoryId && transaction) {
+        try {
+          // Extract payee from description (before " - " if exists)
+          const payee = transaction.description.split(' - ')[0] || transaction.description;
+          
+          const expenseTransaction = {
+            companyId: transaction.companyId,
+            expenseCategoryId: categorization.categoryId,
+            transactionDate: transaction.transactionDate,
+            payee: payee,
+            transactionType: 'EXPENSE' as const,
+            description: transaction.description,
+            amountBeforeTax: transaction.debitAmount !== '0.00' ? transaction.debitAmount : transaction.creditAmount,
+            salesTax: '0.00',
+            totalAmount: transaction.debitAmount !== '0.00' ? transaction.debitAmount : transaction.creditAmount,
+            vendorId: categorization.vendorId || null,
+            notes: categorization.notes || `Auto-created from bank transaction ID ${id}`
+          };
+
+          await storage.createExpenseTransaction(expenseTransaction);
+          console.log(`Created expense transaction for bank transaction ${id}`);
+        } catch (expenseError) {
+          console.error("Error creating expense transaction:", expenseError);
+          // Don't fail the entire categorization if expense creation fails
+        }
+      }
+
       res.json(transaction);
     } catch (error) {
       console.error("Error categorizing bank transaction:", error);
