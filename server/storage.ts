@@ -464,8 +464,12 @@ export class DatabaseStorage implements IStorage {
     }
 
     try {
+      console.log(`Processing ${csvData.length} rows for upload ${uploadId}`);
+      
       // Process each row of CSV data
       for (const row of csvData) {
+        console.log(`Processing row:`, row);
+        
         // Parse the row data
         const transactionDate = new Date(row.date).toISOString().split('T')[0];
         const description = row.description || '';
@@ -500,7 +504,14 @@ export class DatabaseStorage implements IStorage {
         
         const runningBalance = row.balance ? parseFloat(row.balance.toString()) : 0;
 
-        // Create bank statement transaction
+        // Get smart categorization suggestions
+        const suggestions = await this.suggestTransactionCategorization(
+          description, 
+          debitAmount + creditAmount, 
+          upload.companyId
+        );
+
+        // Create bank statement transaction with suggestions
         await this.createBankStatementTransaction({
           companyId: upload.companyId,
           bankAccountId: upload.bankAccountId,
@@ -511,6 +522,9 @@ export class DatabaseStorage implements IStorage {
           creditAmount: creditAmount.toString(),
           runningBalance: runningBalance.toString(),
           isReconciled: false,
+          suggestedCustomerId: suggestions.customers.length > 0 ? suggestions.customers[0].id : undefined,
+          suggestedVendorId: suggestions.vendors.length > 0 ? suggestions.vendors[0].id : undefined,
+          suggestedCategoryId: suggestions.categories.length > 0 ? suggestions.categories[0].id : undefined,
         });
       }
 
@@ -520,11 +534,14 @@ export class DatabaseStorage implements IStorage {
         processedDate: new Date(),
         processedRows: csvData.length,
       });
+      
+      console.log(`Successfully processed ${csvData.length} rows for upload ${uploadId}`);
     } catch (error) {
+      console.error(`Error processing upload ${uploadId}:`, error);
       // Update upload status to failed
       await this.updateBankStatementUpload(uploadId, {
         status: "FAILED",
-        errorMessage: error.message,
+        errorMessage: error instanceof Error ? error.message : 'Processing failed',
       });
       throw error;
     }

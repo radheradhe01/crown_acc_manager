@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar } from "lucide-react";
+import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -244,15 +244,23 @@ export default function BankStatements() {
                         </TableCell>
                         <TableCell>{formatCurrency(parseFloat(transaction.runningBalance))}</TableCell>
                         <TableCell>
-                          {transaction.customerId ? (
-                            <Badge variant="secondary">Customer</Badge>
-                          ) : transaction.vendorId ? (
-                            <Badge variant="secondary">Vendor</Badge>
-                          ) : transaction.categoryId ? (
-                            <Badge variant="secondary">Category</Badge>
-                          ) : (
-                            <Badge variant="outline">Uncategorized</Badge>
-                          )}
+                          <div className="flex items-center space-x-2">
+                            {transaction.customerId ? (
+                              <Badge variant="secondary">Customer</Badge>
+                            ) : transaction.vendorId ? (
+                              <Badge variant="secondary">Vendor</Badge>
+                            ) : transaction.categoryId ? (
+                              <Badge variant="secondary">Category</Badge>
+                            ) : (
+                              <Badge variant="outline">Uncategorized</Badge>
+                            )}
+                            {(transaction.suggestedCustomerId || transaction.suggestedVendorId || transaction.suggestedCategoryId) && (
+                              <Badge variant="outline" className="text-blue-600 bg-blue-50">
+                                <Lightbulb className="h-3 w-3 mr-1" />
+                                Suggested
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Button 
@@ -348,31 +356,75 @@ function CategorizationDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Transaction Details</span>
-              <span className="text-sm text-gray-500">{formatDate(transaction.transactionDate)}</span>
+            <div className="flex items-center space-x-2 mb-2">
+              <Calendar className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium">{formatDate(transaction.transactionDate)}</span>
             </div>
-            <p className="text-sm text-gray-700 mb-2">{transaction.description}</p>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2 mb-2">
+              <DollarSign className="h-4 w-4 text-gray-500" />
               <span className="text-sm">
-                Amount: {transaction.debitAmount !== "0" 
-                  ? `-${formatCurrency(parseFloat(transaction.debitAmount))}` 
-                  : `+${formatCurrency(parseFloat(transaction.creditAmount))}`}
-              </span>
-              <span className="text-sm text-gray-500">
-                Balance: {formatCurrency(parseFloat(transaction.runningBalance))}
+                {transaction.debitAmount !== "0" && (
+                  <span className="text-red-600 font-medium">
+                    -{formatCurrency(parseFloat(transaction.debitAmount))}
+                  </span>
+                )}
+                {transaction.creditAmount !== "0" && (
+                  <span className="text-green-600 font-medium">
+                    +{formatCurrency(parseFloat(transaction.creditAmount))}
+                  </span>
+                )}
               </span>
             </div>
+            <p className="text-sm text-gray-700 mb-2">
+              <strong>Description:</strong> {transaction.description}
+            </p>
+            
+            {/* Smart Suggestions */}
+            {(transaction.suggestedCustomerId || transaction.suggestedVendorId || transaction.suggestedCategoryId) && (
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Lightbulb className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">Smart Suggestions</span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  {transaction.suggestedCustomerId && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-600">Customer:</span>
+                      <span className="font-medium">
+                        {customers.find(c => c.id === transaction.suggestedCustomerId)?.name || 'Unknown'}
+                      </span>
+                    </div>
+                  )}
+                  {transaction.suggestedVendorId && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-600">Vendor:</span>
+                      <span className="font-medium">
+                        {vendors.find(v => v.id === transaction.suggestedVendorId)?.name || 'Unknown'}
+                      </span>
+                    </div>
+                  )}
+                  {transaction.suggestedCategoryId && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-600">Category:</span>
+                      <span className="font-medium">
+                        {expenseCategories.find(c => c.id === transaction.suggestedCategoryId)?.name || 'Unknown'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Customer</label>
-              <Select value={categorization.customerId} onValueChange={(value) => 
-                setCategorization({ ...categorization, customerId: value, vendorId: "", categoryId: "" })
-              }>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer</Label>
+              <Select 
+                value={categorization.customerId} 
+                onValueChange={(value) => setCategorization({...categorization, customerId: value, vendorId: ""})}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select customer" />
+                  <SelectValue placeholder="Select customer..." />
                 </SelectTrigger>
                 <SelectContent>
                   {customers.map((customer) => (
@@ -382,15 +434,27 @@ function CategorizationDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {transaction.suggestedCustomerId && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setCategorization({...categorization, customerId: transaction.suggestedCustomerId!.toString(), vendorId: ""})}
+                  className="w-full text-blue-600 border-blue-200"
+                >
+                  <Zap className="h-3 w-3 mr-1" />
+                  Use Suggested Customer
+                </Button>
+              )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Vendor</label>
-              <Select value={categorization.vendorId} onValueChange={(value) => 
-                setCategorization({ ...categorization, vendorId: value, customerId: "", categoryId: "" })
-              }>
+            <div className="space-y-2">
+              <Label htmlFor="vendor">Vendor</Label>
+              <Select 
+                value={categorization.vendorId} 
+                onValueChange={(value) => setCategorization({...categorization, vendorId: value, customerId: ""})}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select vendor" />
+                  <SelectValue placeholder="Select vendor..." />
                 </SelectTrigger>
                 <SelectContent>
                   {vendors.map((vendor) => (
@@ -400,15 +464,27 @@ function CategorizationDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {transaction.suggestedVendorId && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setCategorization({...categorization, vendorId: transaction.suggestedVendorId!.toString(), customerId: ""})}
+                  className="w-full text-blue-600 border-blue-200"
+                >
+                  <Zap className="h-3 w-3 mr-1" />
+                  Use Suggested Vendor
+                </Button>
+              )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Expense Category</label>
-              <Select value={categorization.categoryId} onValueChange={(value) => 
-                setCategorization({ ...categorization, categoryId: value, customerId: "", vendorId: "" })
-              }>
+            <div className="space-y-2">
+              <Label htmlFor="category">Expense Category</Label>
+              <Select 
+                value={categorization.categoryId} 
+                onValueChange={(value) => setCategorization({...categorization, categoryId: value})}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select category..." />
                 </SelectTrigger>
                 <SelectContent>
                   {expenseCategories.map((category) => (
@@ -418,17 +494,28 @@ function CategorizationDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {transaction.suggestedCategoryId && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setCategorization({...categorization, categoryId: transaction.suggestedCategoryId!.toString()})}
+                  className="w-full text-blue-600 border-blue-200"
+                >
+                  <Zap className="h-3 w-3 mr-1" />
+                  Use Suggested Category
+                </Button>
+              )}
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Notes</label>
-              <Textarea
-                value={categorization.notes}
-                onChange={(e) => setCategorization({ ...categorization, notes: e.target.value })}
-                placeholder="Add any notes about this transaction..."
-                rows={3}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea 
+              id="notes"
+              placeholder="Add any additional notes..."
+              value={categorization.notes}
+              onChange={(e) => setCategorization({...categorization, notes: e.target.value})}
+            />
           </div>
 
           <div className="flex justify-end space-x-2">

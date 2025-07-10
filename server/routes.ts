@@ -384,13 +384,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the CSV data if provided
       if (csvData && Array.isArray(csvData)) {
         try {
+          console.log(`Processing ${csvData.length} rows for upload ${upload.id}`);
           await storage.processBankStatementUpload(upload.id, csvData);
+          console.log(`Successfully processed upload ${upload.id}`);
         } catch (processError) {
           console.error("Error processing bank statement upload:", processError);
           // Update upload status to failed
           await storage.updateBankStatementUpload(upload.id, {
             status: "FAILED",
-            errorMessage: processError.message,
+            errorMessage: processError instanceof Error ? processError.message : 'Processing failed',
           });
         }
       }
