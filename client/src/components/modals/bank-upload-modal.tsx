@@ -98,8 +98,11 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
           csvData: transactions, // Include parsed CSV data for processing
         };
 
-        const response = await apiRequest("POST", "/api/bank-uploads", uploadData);
-        return response.json();
+        const response = await apiRequest(`/api/companies/${currentCompany?.id}/bank-uploads`, {
+          method: "POST",
+          body: uploadData
+        });
+        return response;
       } catch (error) {
         if (error instanceof Error) {
           throw error;
