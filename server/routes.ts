@@ -496,6 +496,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/companies/:companyId/bank-uploads", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const { csvData, ...uploadData } = req.body;
+      const validatedData = insertBankStatementUploadSchema.parse({
+        ...uploadData,
+        companyId: companyId
+      });
+      
+      // Create the upload record
+      const upload = await storage.createBankStatementUpload(validatedData);
+      
+      // Process the CSV data if provided
+      if (csvData && Array.isArray(csvData)) {
+        try {
+          console.log(`Processing ${csvData.length} rows for upload ${upload.id}`);
+          await storage.processBankStatementUpload(upload.id, csvData);
+          console.log(`Successfully processed upload ${upload.id}`);
+        } catch (processError) {
+          console.error("Error processing bank statement upload:", processError);
+          // Update upload status to failed
+          await storage.updateBankStatementUpload(upload.id, {
+            status: "FAILED",
+            errorMessage: processError instanceof Error ? processError.message : 'Processing failed',
+          });
+        }
+      }
+      
+      res.status(201).json(upload);
+    } catch (error) {
+      console.error("Error creating bank upload:", error);
+      res.status(400).json({ message: "Failed to create bank upload" });
+    }
+  });
+
   app.get("/api/companies/:companyId/bank-statement-transactions", async (req, res) => {
     try {
       const companyId = parseInt(req.params.companyId);
