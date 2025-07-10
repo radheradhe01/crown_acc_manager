@@ -440,7 +440,7 @@ function CategorizationDialog({
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => setCategorization({...categorization, customerId: transaction.suggestedCustomerId!.toString(), vendorId: ""})}
+                        onClick={() => setCategorization({...categorization, customerId: transaction.suggestedCustomerId?.toString() || "", vendorId: ""})}
                         className="text-blue-600 border-blue-200 hover:bg-blue-50"
                       >
                         <Zap className="h-3 w-3 mr-1" />
@@ -460,7 +460,7 @@ function CategorizationDialog({
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => setCategorization({...categorization, vendorId: transaction.suggestedVendorId!.toString(), customerId: ""})}
+                        onClick={() => setCategorization({...categorization, vendorId: transaction.suggestedVendorId?.toString() || "", customerId: ""})}
                         className="text-blue-600 border-blue-200 hover:bg-blue-50"
                       >
                         <Zap className="h-3 w-3 mr-1" />
@@ -480,7 +480,7 @@ function CategorizationDialog({
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => setCategorization({...categorization, categoryId: transaction.suggestedCategoryId!.toString()})}
+                        onClick={() => setCategorization({...categorization, categoryId: transaction.suggestedCategoryId?.toString() || ""})}
                         className="text-blue-600 border-blue-200 hover:bg-blue-50"
                       >
                         <Zap className="h-3 w-3 mr-1" />
@@ -560,7 +560,7 @@ function CategorizationDialog({
                   </div>
                   <EnhancedCategorySelector
                     selectedCategoryId={categorization.categoryId ? parseInt(categorization.categoryId) : undefined}
-                    onCategorySelect={(category) => setCategorization({...categorization, categoryId: category.id.toString()})}
+                    onCategorySelect={(category) => setCategorization({...categorization, categoryId: category.id?.toString() || ""})}
                     placeholder="Select or create category..."
                     className="h-11"
                   />
