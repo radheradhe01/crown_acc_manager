@@ -489,24 +489,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const companyId = parseInt(req.params.companyId);
       
-      // Get current month data
+      // Get date range from query params or default to current month
       const currentDate = new Date();
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      const defaultStartDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString().split('T')[0];
+      const defaultEndDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      const startDate = req.query.startDate as string || defaultStartDate;
+      const endDate = req.query.endDate as string || defaultEndDate;
       
       // Get total revenue (from invoices)
-      const totalRevenue = await storage.getTotalRevenue(companyId, 
-        startOfMonth.toISOString().split('T')[0], 
-        endOfMonth.toISOString().split('T')[0]
-      );
+      const totalRevenue = await storage.getTotalRevenue(companyId, startDate, endDate);
       
       // Get total expenses (from expense transactions)
-      const totalExpenses = await storage.getTotalExpenses(companyId, 
-        startOfMonth.toISOString().split('T')[0], 
-        endOfMonth.toISOString().split('T')[0]
-      );
+      const totalExpenses = await storage.getTotalExpenses(companyId, startDate, endDate);
       
-      // Get outstanding receivables
+      // Get outstanding receivables (not filtered by date - always current)
       const outstandingBalance = await storage.getOutstandingReceivables(companyId);
       
       // Calculate net profit
@@ -516,7 +513,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalRevenue,
         totalExpenses,
         outstandingBalance,
-        netProfit
+        netProfit,
+        period: { startDate, endDate }
       });
     } catch (error) {
       console.error("Error fetching dashboard metrics:", error);

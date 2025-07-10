@@ -1806,7 +1806,7 @@ export class DatabaseStorage implements IStorage {
 
       // Get summary metrics
       const [revenueResult] = await db
-        .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
@@ -1815,7 +1815,7 @@ export class DatabaseStorage implements IStorage {
         ));
 
       const [expenseResult] = await db
-        .select({ total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(${expenseTransactions.totalAmount}), 0)` })
         .from(expenseTransactions)
         .where(and(
           eq(expenseTransactions.companyId, companyId),
@@ -1830,7 +1830,7 @@ export class DatabaseStorage implements IStorage {
 
       // Get outstanding balances
       const [outstandingReceivables] = await db
-        .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
@@ -1838,7 +1838,7 @@ export class DatabaseStorage implements IStorage {
         ));
 
       const [outstandingPayables] = await db
-        .select({ total: sql<number>`COALESCE(SUM(CAST(${bills.totalAmount} AS DECIMAL(10,2))), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(${bills.totalAmount}), 0)` })
         .from(bills)
         .where(and(
           eq(bills.companyId, companyId),
@@ -1854,7 +1854,7 @@ export class DatabaseStorage implements IStorage {
       const revenueTrends = await db
         .select({
           month: sql<string>`TO_CHAR(${invoices.issueDate}, 'YYYY-MM')`,
-          amount: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)`
+          amount: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`
         })
         .from(invoices)
         .where(and(
@@ -1867,7 +1867,7 @@ export class DatabaseStorage implements IStorage {
       const expenseTrends = await db
         .select({
           month: sql<string>`TO_CHAR(${expenseTransactions.transactionDate}, 'YYYY-MM')`,
-          amount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))), 0)`
+          amount: sql<number>`COALESCE(SUM(${expenseTransactions.totalAmount}), 0)`
         })
         .from(expenseTransactions)
         .where(and(
@@ -1881,7 +1881,7 @@ export class DatabaseStorage implements IStorage {
       const categoryBreakdown = await db
         .select({
           category: expenseCategories.name,
-          amount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))), 0)`
+          amount: sql<number>`COALESCE(SUM(${expenseTransactions.totalAmount}), 0)`
         })
         .from(expenseTransactions)
         .leftJoin(expenseCategories, eq(expenseTransactions.expenseCategoryId, expenseCategories.id))
@@ -1890,7 +1890,7 @@ export class DatabaseStorage implements IStorage {
           gte(expenseTransactions.transactionDate, startDate.toISOString().split('T')[0])
         ))
         .groupBy(expenseCategories.name)
-        .orderBy(sql`SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))) DESC`);
+        .orderBy(sql`SUM(${expenseTransactions.totalAmount}) DESC`);
 
       const totalCategoryExpenses = categoryBreakdown.reduce((sum, cat) => sum + cat.amount, 0);
       const categoryBreakdownWithPercentage = categoryBreakdown.map(cat => ({
@@ -2011,41 +2011,62 @@ export class DatabaseStorage implements IStorage {
 
   // Dashboard helper methods
   async getTotalRevenue(companyId: number, startDate: string, endDate: string): Promise<number> {
-    const [result] = await db
-      .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)` })
-      .from(invoices)
-      .where(and(
-        eq(invoices.companyId, companyId),
-        gte(invoices.issueDate, startDate),
-        lte(invoices.issueDate, endDate)
-      ));
-    
-    return result?.total || 0;
+    try {
+      const result = await db
+        .select({ 
+          total: sql<number>`COALESCE(SUM(${invoices.totalAmount}::numeric), 0)` 
+        })
+        .from(invoices)
+        .where(and(
+          eq(invoices.companyId, companyId),
+          gte(invoices.issueDate, startDate),
+          lte(invoices.issueDate, endDate)
+        ));
+      
+      return Number(result[0]?.total || 0);
+    } catch (error) {
+      console.error('Error in getTotalRevenue:', error);
+      return 0;
+    }
   }
 
   async getTotalExpenses(companyId: number, startDate: string, endDate: string): Promise<number> {
-    const [result] = await db
-      .select({ total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))), 0)` })
-      .from(expenseTransactions)
-      .where(and(
-        eq(expenseTransactions.companyId, companyId),
-        gte(expenseTransactions.transactionDate, startDate),
-        lte(expenseTransactions.transactionDate, endDate)
-      ));
-    
-    return result?.total || 0;
+    try {
+      const result = await db
+        .select({ 
+          total: sql<number>`COALESCE(SUM(${expenseTransactions.totalAmount}::numeric), 0)` 
+        })
+        .from(expenseTransactions)
+        .where(and(
+          eq(expenseTransactions.companyId, companyId),
+          gte(expenseTransactions.transactionDate, startDate),
+          lte(expenseTransactions.transactionDate, endDate)
+        ));
+      
+      return Number(result[0]?.total || 0);
+    } catch (error) {
+      console.error('Error in getTotalExpenses:', error);
+      return 0;
+    }
   }
 
   async getOutstandingReceivables(companyId: number): Promise<number> {
-    const [result] = await db
-      .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)` })
-      .from(invoices)
-      .where(and(
-        eq(invoices.companyId, companyId),
-        eq(invoices.status, 'SENT')
-      ));
-    
-    return result?.total || 0;
+    try {
+      const result = await db
+        .select({ 
+          total: sql<number>`COALESCE(SUM(${invoices.totalAmount}::numeric), 0)` 
+        })
+        .from(invoices)
+        .where(and(
+          eq(invoices.companyId, companyId),
+          eq(invoices.status, 'SENT')
+        ));
+      
+      return Number(result[0]?.total || 0);
+    } catch (error) {
+      console.error('Error in getOutstandingReceivables:', error);
+      return 0;
+    }
   }
 
   async getRecentTransactions(companyId: number, limit: number = 10): Promise<any[]> {

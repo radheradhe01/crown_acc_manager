@@ -10,11 +10,27 @@ interface Metrics {
   netProfit: number;
 }
 
-export function MetricsCards() {
+interface MetricsCardsProps {
+  dateRange?: {
+    startDate: string;
+    endDate: string;
+  };
+}
+
+export function MetricsCards({ dateRange }: MetricsCardsProps) {
   const { currentCompany } = useCurrentCompany();
 
   const { data: metrics, isLoading } = useQuery<Metrics>({
-    queryKey: ["/api/companies", currentCompany?.id, "dashboard", "metrics"],
+    queryKey: ["/api/companies", currentCompany?.id, "dashboard", "metrics", dateRange?.startDate, dateRange?.endDate],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (dateRange?.startDate) params.append('startDate', dateRange.startDate);
+      if (dateRange?.endDate) params.append('endDate', dateRange.endDate);
+      
+      const response = await fetch(`/api/companies/${currentCompany?.id}/dashboard/metrics?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch metrics');
+      return response.json();
+    },
     enabled: !!currentCompany?.id,
   });
 
