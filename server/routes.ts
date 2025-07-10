@@ -484,6 +484,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard endpoints
+  app.get("/api/companies/:companyId/dashboard/metrics", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      
+      // Get current month data
+      const currentDate = new Date();
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      
+      // Get total revenue (from invoices)
+      const totalRevenue = await storage.getTotalRevenue(companyId, 
+        startOfMonth.toISOString().split('T')[0], 
+        endOfMonth.toISOString().split('T')[0]
+      );
+      
+      // Get total expenses (from expense transactions)
+      const totalExpenses = await storage.getTotalExpenses(companyId, 
+        startOfMonth.toISOString().split('T')[0], 
+        endOfMonth.toISOString().split('T')[0]
+      );
+      
+      // Get outstanding receivables
+      const outstandingBalance = await storage.getOutstandingReceivables(companyId);
+      
+      // Calculate net profit
+      const netProfit = totalRevenue - totalExpenses;
+      
+      res.json({
+        totalRevenue,
+        totalExpenses,
+        outstandingBalance,
+        netProfit
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard metrics:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard metrics" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/dashboard/outstanding-customers", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const customers = await storage.getOutstandingCustomers(companyId);
+      res.json(customers);
+    } catch (error) {
+      console.error("Error fetching outstanding customers:", error);
+      res.status(500).json({ message: "Failed to fetch outstanding customers" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/dashboard/outstanding-vendors", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const vendors = await storage.getOutstandingVendors(companyId);
+      res.json(vendors);
+    } catch (error) {
+      console.error("Error fetching outstanding vendors:", error);
+      res.status(500).json({ message: "Failed to fetch outstanding vendors" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/dashboard/recent-transactions", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const transactions = await storage.getRecentTransactions(companyId, 10);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching recent transactions:", error);
+      res.status(500).json({ message: "Failed to fetch recent transactions" });
+    }
+  });
+
   // Bank Statement Upload routes
   app.get("/api/companies/:companyId/bank-uploads", async (req, res) => {
     try {

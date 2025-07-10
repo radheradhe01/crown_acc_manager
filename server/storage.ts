@@ -908,7 +908,7 @@ export class DatabaseStorage implements IStorage {
     // Get revenue from invoices
     const revenueQuery = db
       .select({
-        totalRevenue: sql<number>`sum(${invoices.amount})`.as('totalRevenue'),
+        totalRevenue: sql<number>`sum(${invoices.amount})`,
       })
       .from(invoices)
       .where(
@@ -923,7 +923,7 @@ export class DatabaseStorage implements IStorage {
     // Get expenses from bills
     const expenseQuery = db
       .select({
-        totalExpenses: sql<number>`sum(${bills.amount})`.as('totalExpenses'),
+        totalExpenses: sql<number>`sum(${bills.amount})`,
       })
       .from(bills)
       .where(
@@ -939,7 +939,7 @@ export class DatabaseStorage implements IStorage {
     const expenseCategoriesQuery = db
       .select({
         categoryName: expenseCategories.name,
-        totalAmount: sql<number>`sum(${transactions.amount})`.as('totalAmount'),
+        totalAmount: sql<number>`sum(${transactions.amount})`,
       })
       .from(transactions)
       .innerJoin(expenseCategories, eq(transactions.categoryId, expenseCategories.id))
@@ -1003,7 +1003,7 @@ export class DatabaseStorage implements IStorage {
             WHERE je.account_id = ${chartOfAccounts.id} 
             AND je.transaction_date <= ${defaultAsOfDate}), 0
           )
-        `.as('balance'),
+        `,
       })
       .from(chartOfAccounts)
       .where(
@@ -1036,7 +1036,7 @@ export class DatabaseStorage implements IStorage {
             WHERE je.account_id = ${chartOfAccounts.id} 
             AND je.transaction_date <= ${defaultAsOfDate}), 0
           )
-        `.as('balance'),
+        `,
       })
       .from(chartOfAccounts)
       .where(
@@ -1069,7 +1069,7 @@ export class DatabaseStorage implements IStorage {
             WHERE je.account_id = ${chartOfAccounts.id} 
             AND je.transaction_date <= ${defaultAsOfDate}), 0
           )
-        `.as('balance'),
+        `,
       })
       .from(chartOfAccounts)
       .where(
@@ -2007,6 +2007,69 @@ export class DatabaseStorage implements IStorage {
         alerts: []
       };
     }
+  }
+
+  // Dashboard helper methods
+  async getTotalRevenue(companyId: number, startDate: string, endDate: string): Promise<number> {
+    const [result] = await db
+      .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)` })
+      .from(invoices)
+      .where(and(
+        eq(invoices.companyId, companyId),
+        gte(invoices.issueDate, startDate),
+        lte(invoices.issueDate, endDate)
+      ));
+    
+    return result?.total || 0;
+  }
+
+  async getTotalExpenses(companyId: number, startDate: string, endDate: string): Promise<number> {
+    const [result] = await db
+      .select({ total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS DECIMAL(10,2))), 0)` })
+      .from(expenseTransactions)
+      .where(and(
+        eq(expenseTransactions.companyId, companyId),
+        gte(expenseTransactions.transactionDate, startDate),
+        lte(expenseTransactions.transactionDate, endDate)
+      ));
+    
+    return result?.total || 0;
+  }
+
+  async getOutstandingReceivables(companyId: number): Promise<number> {
+    const [result] = await db
+      .select({ total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS DECIMAL(10,2))), 0)` })
+      .from(invoices)
+      .where(and(
+        eq(invoices.companyId, companyId),
+        eq(invoices.status, 'SENT')
+      ));
+    
+    return result?.total || 0;
+  }
+
+  async getRecentTransactions(companyId: number, limit: number = 10): Promise<any[]> {
+    const result = await db
+      .select({
+        id: expenseTransactions.id,
+        transactionDate: expenseTransactions.transactionDate,
+        description: expenseTransactions.description,
+        totalAmount: expenseTransactions.totalAmount,
+        categoryName: expenseCategories.name,
+        vendorName: vendors.name,
+        type: sql<string>`'expense'`,
+      })
+      .from(expenseTransactions)
+      .leftJoin(expenseCategories, eq(expenseTransactions.expenseCategoryId, expenseCategories.id))
+      .leftJoin(vendors, eq(expenseTransactions.vendorId, vendors.id))
+      .where(eq(expenseTransactions.companyId, companyId))
+      .orderBy(desc(expenseTransactions.transactionDate))
+      .limit(limit);
+
+    return result.map(row => ({
+      ...row,
+      totalAmount: Number(row.totalAmount || 0),
+    }));
   }
 }
 
