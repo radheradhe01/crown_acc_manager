@@ -32,10 +32,12 @@ export default function Expenses() {
     enabled: !!currentCompany?.id,
   });
 
-  const { data: categories = [] } = useQuery<ExpenseCategory[]>({
-    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`],
+  const { data: categoriesData } = useQuery<{categories: ExpenseCategory[], totalCount: number}>({
+    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`, 1, 100], // Get first 100 categories
     enabled: !!currentCompany?.id,
   });
+
+  const categories = categoriesData?.categories || [];
 
   const { data: vendors = [] } = useQuery<Vendor[]>({
     queryKey: [`/api/companies/${currentCompany?.id}/vendors`],
