@@ -366,8 +366,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/companies/:companyId/expense-categories", async (req, res) => {
     try {
       const companyId = parseInt(req.params.companyId);
-      const categories = await storage.getExpenseCategories(companyId);
-      res.json(categories);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const result = await storage.getExpenseCategories(companyId, page, limit);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching expense categories:", error);
       res.status(500).json({ message: "Failed to fetch expense categories" });

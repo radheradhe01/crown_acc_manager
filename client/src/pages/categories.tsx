@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit, Trash2, Search, Filter } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { apiRequest } from "@/lib/queryClient";
 import type { ExpenseCategory, InsertExpenseCategory } from "@shared/schema";
+
+interface CategoriesResponse {
+  categories: ExpenseCategory[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
 
 const MAIN_ACCOUNT_TYPES = [
   { value: "cash_and_cash_equivalents", label: "Cash and Cash Equivalents", color: "bg-blue-100 text-blue-800" },
@@ -54,6 +61,8 @@ export default function Categories() {
   const [filterType, setFilterType] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -61,10 +70,12 @@ export default function Categories() {
     detailType: "",
   });
 
-  const { data: categories = [], isLoading } = useQuery({
-    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`],
+  const { data: categoriesData, isLoading } = useQuery<CategoriesResponse>({
+    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`, currentPage, pageSize],
     enabled: !!currentCompany,
   });
+
+  const categories = categoriesData?.categories || [];
 
   const createCategoryMutation = useMutation({
     mutationFn: async (data: InsertExpenseCategory) => {
@@ -205,7 +216,11 @@ export default function Categories() {
             <p className="text-gray-600 mt-2">Manage your chart of accounts and expense categories</p>
             <div className="flex items-center space-x-4 mt-4">
               <div className="text-sm text-gray-500">
-                <span className="font-medium text-gray-900">{filteredCategories.length}</span> categories
+                <span className="font-medium text-gray-900">{categoriesData?.totalCount || 0}</span> total categories
+              </div>
+              <div className="h-4 w-px bg-gray-300"></div>
+              <div className="text-sm text-gray-500">
+                <span className="font-medium text-gray-900">{filteredCategories.length}</span> filtered
               </div>
               <div className="h-4 w-px bg-gray-300"></div>
               <div className="text-sm text-gray-500">
@@ -498,6 +513,65 @@ export default function Categories() {
                 </div>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {categoriesData && categoriesData.totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t">
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-gray-500">
+                    Showing {((categoriesData.currentPage - 1) * pageSize) + 1} to {Math.min(categoriesData.currentPage * pageSize, categoriesData.totalCount)} of {categoriesData.totalCount} categories
+                  </div>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-3 py-1 border rounded-md text-sm"
+                  >
+                    <option value={10}>10 per page</option>
+                    <option value={25}>25 per page</option>
+                    <option value={50}>50 per page</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(categoriesData.currentPage - 1)}
+                    disabled={categoriesData.currentPage <= 1}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, categoriesData.totalPages) }, (_, i) => {
+                      const page = Math.max(1, Math.min(categoriesData.currentPage - 2, categoriesData.totalPages - 4)) + i;
+                      if (page > categoriesData.totalPages) return null;
+                      return (
+                        <Button
+                          key={page}
+                          variant={page === categoriesData.currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                        >
+                          {page}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(categoriesData.currentPage + 1)}
+                    disabled={categoriesData.currentPage >= categoriesData.totalPages}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

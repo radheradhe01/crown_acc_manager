@@ -466,12 +466,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Expense Categories
-  async getExpenseCategories(companyId: number): Promise<ExpenseCategory[]> {
-    return await db
+  async getExpenseCategories(companyId: number, page: number = 1, limit: number = 10): Promise<{
+    categories: ExpenseCategory[],
+    totalCount: number,
+    totalPages: number,
+    currentPage: number
+  }> {
+    const offset = (page - 1) * limit;
+
+    // Get total count for pagination
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(expenseCategories)
+      .where(and(eq(expenseCategories.companyId, companyId), eq(expenseCategories.isActive, true)));
+
+    const totalCount = Number(countResult?.count || 0);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Get paginated categories
+    const categories = await db
       .select()
       .from(expenseCategories)
       .where(and(eq(expenseCategories.companyId, companyId), eq(expenseCategories.isActive, true)))
-      .orderBy(asc(expenseCategories.name));
+      .orderBy(asc(expenseCategories.name))
+      .limit(limit)
+      .offset(offset);
+    
+    return {
+      categories,
+      totalCount,
+      totalPages,
+      currentPage: page
+    };
   }
 
   async getExpenseCategory(id: number): Promise<ExpenseCategory | undefined> {
@@ -2123,42 +2149,42 @@ export class DatabaseStorage implements IStorage {
           openingBalance: customers.openingBalance,
           receivableAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(${invoices.totalAmount})
-               FROM ${invoices}
-               WHERE ${invoices.customerId} = ${customers.id}
-                 AND ${invoices.status} = 'SENT'
+              (SELECT SUM(total_amount)::numeric
+               FROM invoices
+               WHERE customer_id = customers.id
+                 AND status = 'SENT'
               ), 0
             )
           `,
           paidAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(${invoices.totalAmount})
-               FROM ${invoices}
-               WHERE ${invoices.customerId} = ${customers.id}
-                 AND ${invoices.status} = 'PAID'
+              (SELECT SUM(total_amount)::numeric
+               FROM invoices
+               WHERE customer_id = customers.id
+                 AND status = 'PAID'
               ), 0
             )
           `,
           totalInvoiced: sql<number>`
             COALESCE(
-              (SELECT SUM(${invoices.totalAmount})
-               FROM ${invoices}
-               WHERE ${invoices.customerId} = ${customers.id}
+              (SELECT SUM(total_amount)::numeric
+               FROM invoices
+               WHERE customer_id = customers.id
               ), 0
             )
           `,
           invoiceCount: sql<number>`
             COALESCE(
               (SELECT COUNT(*)
-               FROM ${invoices}
-               WHERE ${invoices.customerId} = ${customers.id}
+               FROM invoices
+               WHERE customer_id = customers.id
               ), 0
             )
           `,
           lastInvoiceDate: sql<string>`
-            (SELECT MAX(${invoices.issueDate})
-             FROM ${invoices}
-             WHERE ${invoices.customerId} = ${customers.id}
+            (SELECT MAX(issue_date)
+             FROM invoices
+             WHERE customer_id = customers.id
             )
           `
         })
