@@ -2226,6 +2226,88 @@ export class DatabaseStorage implements IStorage {
       };
     }
   }
+
+  // Get detailed customer statement summary with transaction lines
+  async getCustomerStatementSummary(companyId: number, customerId: number): Promise<{
+    openingBalance: number,
+    totalRevenue: number,
+    totalCost: number,
+    totalDebits: number,
+    totalCredits: number,
+    closingBalance: number,
+    lines: any[]
+  }> {
+    try {
+      // Get customer's opening balance
+      const [customer] = await db
+        .select({ openingBalance: customers.openingBalance })
+        .from(customers)
+        .where(and(
+          eq(customers.id, customerId),
+          eq(customers.companyId, companyId)
+        ));
+
+      const openingBalance = Number(customer?.openingBalance || 0);
+
+      // Get all transaction lines for this customer
+      const lines = await db
+        .select({
+          id: customerStatementLines.id,
+          lineDate: customerStatementLines.lineDate,
+          lineType: customerStatementLines.lineType,
+          description: customerStatementLines.description,
+          revenue: customerStatementLines.revenue,
+          cost: customerStatementLines.cost,
+          nettingBalance: customerStatementLines.nettingBalance,
+          debitAmount: customerStatementLines.debitAmount,
+          creditAmount: customerStatementLines.creditAmount,
+          runningBalance: customerStatementLines.runningBalance,
+          referenceNumber: customerStatementLines.referenceNumber,
+        })
+        .from(customerStatementLines)
+        .where(eq(customerStatementLines.customerId, customerId))
+        .orderBy(customerStatementLines.lineDate, customerStatementLines.id);
+
+      // Calculate totals
+      const totalRevenue = lines.reduce((sum, line) => sum + Number(line.revenue || 0), 0);
+      const totalCost = lines.reduce((sum, line) => sum + Number(line.cost || 0), 0);
+      const totalDebits = lines.reduce((sum, line) => sum + Number(line.debitAmount || 0), 0);
+      const totalCredits = lines.reduce((sum, line) => sum + Number(line.creditAmount || 0), 0);
+      const closingBalance = openingBalance + totalRevenue - totalCost + totalDebits - totalCredits;
+
+      // Process lines to ensure numeric values
+      const processedLines = lines.map(line => ({
+        ...line,
+        revenue: Number(line.revenue || 0),
+        cost: Number(line.cost || 0),
+        nettingBalance: Number(line.nettingBalance || 0),
+        debitAmount: Number(line.debitAmount || 0),
+        creditAmount: Number(line.creditAmount || 0),
+        runningBalance: Number(line.runningBalance || 0),
+      }));
+
+      return {
+        openingBalance,
+        totalRevenue,
+        totalCost,
+        totalDebits,
+        totalCredits,
+        closingBalance,
+        lines: processedLines
+      };
+    } catch (error) {
+      console.error('Error fetching customer statement summary:', error);
+      return {
+        openingBalance: 0,
+        totalRevenue: 0,
+        totalCost: 0,
+        totalDebits: 0,
+        totalCredits: 0,
+        closingBalance: 0,
+        lines: []
+      };
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();

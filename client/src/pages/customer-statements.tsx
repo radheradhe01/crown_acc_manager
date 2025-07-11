@@ -21,7 +21,10 @@ import {
   TrendingDown,
   Phone,
   Mail,
-  Calendar
+  Calendar,
+  ArrowLeft,
+  FileText,
+  CreditCard
 } from "lucide-react";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { format } from "date-fns";
@@ -49,15 +52,46 @@ interface CustomerStatementsResponse {
   currentPage: number;
 }
 
+interface CustomerStatementLine {
+  id: number;
+  lineDate: string;
+  lineType: string;
+  description: string;
+  revenue: number;
+  cost: number;
+  nettingBalance: number;
+  debitAmount: number;
+  creditAmount: number;
+  runningBalance: number;
+  referenceNumber: string;
+}
+
+interface CustomerStatementSummary {
+  openingBalance: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalDebits: number;
+  totalCredits: number;
+  closingBalance: number;
+  lines: CustomerStatementLine[];
+}
+
 export default function CustomerStatements() {
   const { currentCompany } = useCurrentCompany();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [pageSize, setPageSize] = useState(10);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerStatement | null>(null);
 
   const { data: statementsData, isLoading, error } = useQuery<CustomerStatementsResponse>({
     queryKey: [`/api/companies/${currentCompany?.id}/customer-statements`, currentPage, pageSize],
     enabled: !!currentCompany?.id,
+  });
+
+  // Get detailed customer statement lines for selected customer
+  const { data: customerDetails, isLoading: isLoadingDetails } = useQuery<CustomerStatementSummary>({
+    queryKey: [`/api/companies/${currentCompany?.id}/customers/${selectedCustomer?.id}/statement-summary`],
+    enabled: !!currentCompany?.id && !!selectedCustomer?.id,
   });
 
   const filteredCustomers = statementsData?.customers?.filter(customer =>
@@ -83,6 +117,40 @@ export default function CustomerStatements() {
     if (balance > 0) return <TrendingUp className="w-4 h-4" />;
     if (balance < 0) return <TrendingDown className="w-4 h-4" />;
     return <DollarSign className="w-4 h-4" />;
+  };
+
+  const handleCustomerSelect = (customer: CustomerStatement) => {
+    setSelectedCustomer(customer);
+  };
+
+  const handleBackToList = () => {
+    setSelectedCustomer(null);
+  };
+
+  const getLineTypeIcon = (lineType: string) => {
+    switch (lineType) {
+      case 'REVENUE':
+        return <TrendingUp className="w-4 h-4 text-green-600" />;
+      case 'COST':
+        return <TrendingDown className="w-4 h-4 text-red-600" />;
+      case 'BANK_TRANSACTION':
+        return <CreditCard className="w-4 h-4 text-blue-600" />;
+      default:
+        return <FileText className="w-4 h-4 text-gray-600" />;
+    }
+  };
+
+  const getLineTypeColor = (lineType: string) => {
+    switch (lineType) {
+      case 'REVENUE':
+        return 'bg-green-100 text-green-800';
+      case 'COST':
+        return 'bg-red-100 text-red-800';
+      case 'BANK_TRANSACTION':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   if (isLoading) {
@@ -116,6 +184,170 @@ export default function CustomerStatements() {
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-red-600">Error loading customer statements. Please try again.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // If a customer is selected, show detailed view
+  if (selectedCustomer) {
+    return (
+      <div className="p-6 space-y-6">
+        {/* Header with Back Button */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={handleBackToList}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Customer List
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">{selectedCustomer.name}</h1>
+              <p className="text-gray-600">Statement of Account</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Customer Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Opening Balance</p>
+                  <p className="text-xl font-bold">
+                    ${customerDetails?.openingBalance.toLocaleString() || selectedCustomer.openingBalance.toLocaleString()}
+                  </p>
+                </div>
+                <DollarSign className="w-6 h-6 text-gray-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Revenue</p>
+                  <p className="text-xl font-bold text-green-600">
+                    ${customerDetails?.totalRevenue.toLocaleString() || selectedCustomer.receivableAmount.toLocaleString()}
+                  </p>
+                </div>
+                <TrendingUp className="w-6 h-6 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Cost</p>
+                  <p className="text-xl font-bold text-red-600">
+                    ${customerDetails?.totalCost.toLocaleString() || '0'}
+                  </p>
+                </div>
+                <TrendingDown className="w-6 h-6 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Closing Balance</p>
+                  <p className={`text-xl font-bold ${getBalanceColor(customerDetails?.closingBalance || selectedCustomer.totalBalance)}`}>
+                    ${customerDetails?.closingBalance.toLocaleString() || selectedCustomer.totalBalance.toLocaleString()}
+                  </p>
+                </div>
+                {getBalanceIcon(customerDetails?.closingBalance || selectedCustomer.totalBalance)}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Detailed Transaction History */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Transaction History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoadingDetails ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-right">Cost</TableHead>
+                      <TableHead className="text-right">Netting</TableHead>
+                      <TableHead className="text-right">Debit</TableHead>
+                      <TableHead className="text-right">Credit</TableHead>
+                      <TableHead className="text-right">Running Balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {customerDetails?.lines?.map((line) => (
+                      <TableRow key={line.id}>
+                        <TableCell>{format(new Date(line.lineDate), 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={getLineTypeColor(line.lineType)}>
+                            <div className="flex items-center gap-1">
+                              {getLineTypeIcon(line.lineType)}
+                              {line.lineType.replace('_', ' ')}
+                            </div>
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{line.description}</TableCell>
+                        <TableCell className="text-right">
+                          {line.revenue > 0 && (
+                            <span className="text-green-600">${line.revenue.toLocaleString()}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {line.cost > 0 && (
+                            <span className="text-red-600">${line.cost.toLocaleString()}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {line.nettingBalance !== 0 && (
+                            <span className={getBalanceColor(line.nettingBalance)}>
+                              ${line.nettingBalance.toLocaleString()}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {line.debitAmount > 0 && (
+                            <span className="text-red-600">${line.debitAmount.toLocaleString()}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {line.creditAmount > 0 && (
+                            <span className="text-green-600">${line.creditAmount.toLocaleString()}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={`font-semibold ${getBalanceColor(line.runningBalance)}`}>
+                            ${line.runningBalance.toLocaleString()}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -220,9 +452,15 @@ export default function CustomerStatements() {
               </TableHeader>
               <TableBody>
                 {filteredCustomers.map((customer) => (
-                  <TableRow key={customer.id}>
+                  <TableRow 
+                    key={customer.id} 
+                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => handleCustomerSelect(customer)}
+                  >
                     <TableCell>
-                      <div className="font-medium">{customer.name}</div>
+                      <div className="font-medium text-blue-600 hover:text-blue-800">
+                        {customer.name}
+                      </div>
                       <div className="text-sm text-gray-500">
                         {customer.invoiceCount} invoice{customer.invoiceCount !== 1 ? 's' : ''}
                       </div>

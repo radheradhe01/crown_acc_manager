@@ -573,6 +573,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get detailed customer statement summary
+  app.get("/api/companies/:companyId/customers/:customerId/statement-summary", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const customerId = parseInt(req.params.customerId);
+      
+      const summary = await storage.getCustomerStatementSummary(companyId, customerId);
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching customer statement summary:", error);
+      res.status(500).json({ message: "Failed to fetch customer statement summary" });
+    }
+  });
+
   // Bank Statement Upload routes
   app.get("/api/companies/:companyId/bank-uploads", async (req, res) => {
     try {
