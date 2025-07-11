@@ -2149,7 +2149,7 @@ export class DatabaseStorage implements IStorage {
           openingBalance: customers.openingBalance,
           receivableAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(total_amount)::numeric
+              (SELECT SUM(amount)::numeric
                FROM invoices
                WHERE customer_id = customers.id
                  AND status = 'SENT'
@@ -2158,7 +2158,7 @@ export class DatabaseStorage implements IStorage {
           `,
           paidAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(total_amount)::numeric
+              (SELECT SUM(amount)::numeric
                FROM invoices
                WHERE customer_id = customers.id
                  AND status = 'PAID'
@@ -2167,7 +2167,7 @@ export class DatabaseStorage implements IStorage {
           `,
           totalInvoiced: sql<number>`
             COALESCE(
-              (SELECT SUM(total_amount)::numeric
+              (SELECT SUM(amount)::numeric
                FROM invoices
                WHERE customer_id = customers.id
               ), 0
@@ -2182,7 +2182,7 @@ export class DatabaseStorage implements IStorage {
             )
           `,
           lastInvoiceDate: sql<string>`
-            (SELECT MAX(issue_date)
+            (SELECT MAX(invoice_date)
              FROM invoices
              WHERE customer_id = customers.id
             )

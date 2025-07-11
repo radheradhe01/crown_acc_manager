@@ -146,6 +146,9 @@ This is a comprehensive accounting software solution built with a modern full-st
 
 ```
 Changelog:
+- July 11, 2025. Added pagination to categories page with full search and filter capabilities
+- July 11, 2025. Merged customer statement functionality into single comprehensive page
+- July 11, 2025. Fixed SQL issues with customer statements and PostgreSQL compatibility
 - July 10, 2025. Added advanced category management system with QuickBooks-style account types
 - July 10, 2025. Enhanced bank transaction categorization with create-new-category feature
 - July 10, 2025. Implemented user roles and permissions system with database support
