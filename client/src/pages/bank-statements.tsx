@@ -51,10 +51,12 @@ export default function BankStatements() {
     enabled: !!currentCompany?.id,
   });
 
-  const { data: expenseCategories = [] } = useQuery<ExpenseCategory[]>({
-    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`],
+  const { data: categoriesData } = useQuery<{categories: ExpenseCategory[], totalCount: number}>({
+    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`, 1, 100], // Get first 100 categories
     enabled: !!currentCompany?.id,
   });
+
+  const expenseCategories = categoriesData?.categories || [];
 
   const categorizeMutation = useMutation({
     mutationFn: async ({ id, categorization }: { id: number; categorization: any }) => {
