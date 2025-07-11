@@ -2138,7 +2138,7 @@ export class DatabaseStorage implements IStorage {
       const totalCount = Number(countResult?.count || 0);
       const totalPages = Math.ceil(totalCount / limit);
 
-      // Get customers with their receivable and payable amounts
+      // Get customers with their receivable and payable amounts from customer_statement_lines
       const customerStatements = await db
         .select({
           id: customers.id,
@@ -2149,42 +2149,45 @@ export class DatabaseStorage implements IStorage {
           openingBalance: customers.openingBalance,
           receivableAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(amount)::numeric
-               FROM invoices
+              (SELECT SUM(revenue)::numeric
+               FROM customer_statement_lines
                WHERE customer_id = customers.id
-                 AND status = 'SENT'
+                 AND line_type = 'REVENUE'
               ), 0
             )
           `,
           paidAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(amount)::numeric
-               FROM invoices
+              (SELECT SUM(credit_amount)::numeric
+               FROM customer_statement_lines
                WHERE customer_id = customers.id
-                 AND status = 'PAID'
+                 AND line_type = 'BANK_TRANSACTION'
               ), 0
             )
           `,
           totalInvoiced: sql<number>`
             COALESCE(
-              (SELECT SUM(amount)::numeric
-               FROM invoices
+              (SELECT SUM(revenue)::numeric
+               FROM customer_statement_lines
                WHERE customer_id = customers.id
+                 AND line_type = 'REVENUE'
               ), 0
             )
           `,
           invoiceCount: sql<number>`
             COALESCE(
               (SELECT COUNT(*)
-               FROM invoices
+               FROM customer_statement_lines
                WHERE customer_id = customers.id
+                 AND line_type = 'REVENUE'
               ), 0
             )
           `,
           lastInvoiceDate: sql<string>`
-            (SELECT MAX(invoice_date)
-             FROM invoices
+            (SELECT MAX(line_date)
+             FROM customer_statement_lines
              WHERE customer_id = customers.id
+               AND line_type = 'REVENUE'
             )
           `
         })
@@ -2202,9 +2205,9 @@ export class DatabaseStorage implements IStorage {
         totalInvoiced: Number(customer.totalInvoiced || 0),
         invoiceCount: Number(customer.invoiceCount || 0),
         // Calculate outstanding balance (receivables - what's been paid)
-        outstandingBalance: Number(customer.receivableAmount || 0),
+        outstandingBalance: Number(customer.receivableAmount || 0) - Number(customer.paidAmount || 0),
         // Calculate total balance including opening balance
-        totalBalance: Number(customer.openingBalance || 0) + Number(customer.receivableAmount || 0),
+        totalBalance: Number(customer.openingBalance || 0) + Number(customer.receivableAmount || 0) - Number(customer.paidAmount || 0),
       }));
 
       return {
