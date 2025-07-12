@@ -62,7 +62,7 @@ import {
   type UpsertUser,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, sum, gte, lte, sql } from "drizzle-orm";
+import { eq, and, or, desc, asc, sum, gte, lte, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Companies
@@ -299,7 +299,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCustomer(id: number): Promise<void> {
-    await db.delete(customers).where(eq(customers.id, id));
+    try {
+      // Delete related customer statement lines
+      await db.delete(customerStatementLines).where(eq(customerStatementLines.customerId, id));
+      
+      // Update bank statement transactions to remove all references to this customer
+      await db.update(bankStatementTransactions)
+        .set({ 
+          suggestedCustomerId: null,
+          customerId: null
+        })
+        .where(or(
+          eq(bankStatementTransactions.suggestedCustomerId, id),
+          eq(bankStatementTransactions.customerId, id)
+        ));
+      
+      // Delete the customer
+      await db.delete(customers).where(eq(customers.id, id));
+    } catch (error) {
+      console.error("Error in deleteCustomer:", error);
+      throw error;
+    }
   }
 
   // Vendors
