@@ -2040,7 +2040,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(${invoices.totalAmount}::numeric), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS NUMERIC)), 0)` 
         })
         .from(invoices)
         .where(and(
@@ -2060,7 +2060,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(${expenseTransactions.totalAmount}::numeric), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS NUMERIC)), 0)` 
         })
         .from(expenseTransactions)
         .where(and(
@@ -2080,7 +2080,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(${invoices.totalAmount}::numeric), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS NUMERIC)), 0)` 
         })
         .from(invoices)
         .where(and(
@@ -2149,7 +2149,7 @@ export class DatabaseStorage implements IStorage {
           openingBalance: customers.openingBalance,
           receivableAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(revenue)::numeric
+              (SELECT SUM(CAST(revenue AS NUMERIC))
                FROM customer_statement_lines
                WHERE customer_id = customers.id
                  AND line_type = 'REVENUE'
@@ -2158,7 +2158,7 @@ export class DatabaseStorage implements IStorage {
           `,
           paidAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(credit_amount)::numeric
+              (SELECT SUM(CAST(credit_amount AS NUMERIC))
                FROM customer_statement_lines
                WHERE customer_id = customers.id
                  AND line_type = 'BANK_TRANSACTION'
@@ -2167,7 +2167,7 @@ export class DatabaseStorage implements IStorage {
           `,
           totalInvoiced: sql<number>`
             COALESCE(
-              (SELECT SUM(revenue)::numeric
+              (SELECT SUM(CAST(revenue AS NUMERIC))
                FROM customer_statement_lines
                WHERE customer_id = customers.id
                  AND line_type = 'REVENUE'

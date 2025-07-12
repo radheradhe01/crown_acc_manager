@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,21 +7,53 @@ import { Badge } from "@/components/ui/badge";
 import { CustomerFormModal } from "@/components/modals/customer-form-modal";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { formatCurrency, formatDate } from "@/lib/accounting-utils";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { Customer } from "@shared/schema";
 
 export default function Customers() {
   const { currentCompany } = useCurrentCompany();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
     queryKey: [`/api/companies/${currentCompany?.id}/customers`],
     enabled: !!currentCompany?.id,
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (customerId: number) => {
+      await apiRequest(`/api/customers/${customerId}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/customers`] });
+      toast({
+        title: "Customer deleted successfully",
+        description: "The customer has been removed from your system.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error deleting customer",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleEdit = (customer: Customer) => {
     setEditingCustomer(customer);
     setIsModalOpen(true);
+  };
+
+  const handleDelete = (customer: Customer) => {
+    if (window.confirm(`Are you sure you want to delete customer "${customer.name}"? This action cannot be undone.`)) {
+      deleteMutation.mutate(customer.id);
+    }
   };
 
   const handleCloseModal = () => {
@@ -102,7 +134,12 @@ export default function Customers() {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDelete(customer)}
+                          disabled={deleteMutation.isPending}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
