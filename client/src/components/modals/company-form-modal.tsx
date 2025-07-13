@@ -48,8 +48,10 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess }: CompanyFormModa
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await apiRequest("POST", "/api/companies", data);
-      return response.json();
+      return await apiRequest("/api/companies", {
+        method: "POST",
+        body: data,
+      });
     },
     onSuccess: (company) => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });

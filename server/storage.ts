@@ -1852,7 +1852,7 @@ export class DatabaseStorage implements IStorage {
 
       // Get summary metrics
       const [revenueResult] = await db
-        .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
@@ -1861,7 +1861,7 @@ export class DatabaseStorage implements IStorage {
         ));
 
       const [expenseResult] = await db
-        .select({ total: sql<number>`COALESCE(SUM(${expenseTransactions.totalAmount}), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` })
         .from(expenseTransactions)
         .where(and(
           eq(expenseTransactions.companyId, companyId),
@@ -1876,7 +1876,7 @@ export class DatabaseStorage implements IStorage {
 
       // Get outstanding balances
       const [outstandingReceivables] = await db
-        .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
@@ -1884,7 +1884,7 @@ export class DatabaseStorage implements IStorage {
         ));
 
       const [outstandingPayables] = await db
-        .select({ total: sql<number>`COALESCE(SUM(${bills.totalAmount}), 0)` })
+        .select({ total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` })
         .from(bills)
         .where(and(
           eq(bills.companyId, companyId),
@@ -1899,16 +1899,16 @@ export class DatabaseStorage implements IStorage {
       // Get monthly trends - use simpler approach for PostgreSQL
       const revenueTrends = await db
         .select({
-          month: sql<string>`TO_CHAR(${invoices.issueDate}, 'YYYY-MM')`,
-          amount: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`
+          month: sql<string>`TO_CHAR(issue_date, 'YYYY-MM')`,
+          amount: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)`
         })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
           gte(invoices.issueDate, startDate.toISOString().split('T')[0])
         ))
-        .groupBy(sql`TO_CHAR(${invoices.issueDate}, 'YYYY-MM')`)
-        .orderBy(sql`TO_CHAR(${invoices.issueDate}, 'YYYY-MM')`);
+        .groupBy(sql`TO_CHAR(issue_date, 'YYYY-MM')`)
+        .orderBy(sql`TO_CHAR(issue_date, 'YYYY-MM')`);
 
       const expenseTrends = await db
         .select({
@@ -2060,7 +2060,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS NUMERIC)), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` 
         })
         .from(invoices)
         .where(and(
@@ -2100,7 +2100,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(${invoices.totalAmount} AS NUMERIC)), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` 
         })
         .from(invoices)
         .where(and(
