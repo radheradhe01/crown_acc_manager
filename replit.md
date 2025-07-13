@@ -146,6 +146,10 @@ This is a comprehensive accounting software solution built with a modern full-st
 
 ```
 Changelog:
+- July 13, 2025. Fixed categorization feature - EnhancedCategorySelector now handles paginated expense categories API response
+- July 13, 2025. Fixed company creation API request format and confirmed functionality working 
+- July 13, 2025. Resolved all remaining SQL syntax errors in analytics queries using proper column names
+- July 13, 2025. Fixed customer deletion with proper cascade handling for foreign key constraints
 - July 11, 2025. Added pagination to categories page with full search and filter capabilities
 - July 11, 2025. Merged customer statement functionality into single comprehensive page
 - July 11, 2025. Fixed SQL issues with customer statements and PostgreSQL compatibility

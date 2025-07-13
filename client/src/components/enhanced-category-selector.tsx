@@ -92,11 +92,12 @@ export function EnhancedCategorySelector({
     return () => document.removeEventListener('openCreateDialog', handleOpenCreateDialog);
   }, []);
 
-  const { data: categories = [], isLoading } = useQuery({
-    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`],
+  const { data: categoriesData, isLoading } = useQuery<{categories: ExpenseCategory[], totalCount: number}>({
+    queryKey: [`/api/companies/${currentCompany?.id}/expense-categories`, 1, 100], // Get first 100 categories
     enabled: !!currentCompany,
   });
 
+  const categories = categoriesData?.categories || [];
   const selectedCategory = categories.find(cat => cat.id === selectedCategoryId);
   
   // Debug log to see what categories are loaded
