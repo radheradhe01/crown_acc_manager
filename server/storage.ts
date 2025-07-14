@@ -1411,6 +1411,28 @@ export class DatabaseStorage implements IStorage {
       const debitAmount = Number(transaction.debitAmount);
       const creditAmount = Number(transaction.creditAmount);
       
+      // Get the customer's current running balance from the last statement line
+      const lastStatementLine = await db
+        .select({ runningBalance: customerStatementLines.runningBalance })
+        .from(customerStatementLines)
+        .where(eq(customerStatementLines.customerId, categorization.customerId))
+        .orderBy(desc(customerStatementLines.lineDate), desc(customerStatementLines.id))
+        .limit(1);
+
+      // If no previous lines, get the customer's opening balance
+      let currentRunningBalance = 0;
+      if (lastStatementLine.length > 0) {
+        currentRunningBalance = Number(lastStatementLine[0].runningBalance);
+      } else {
+        const customer = await this.getCustomer(categorization.customerId);
+        currentRunningBalance = Number(customer?.openingBalance || 0);
+      }
+
+      // Calculate new running balance
+      // Debit increases balance (payment received), Credit decreases balance (payment made)
+      const lineImpact = debitAmount - creditAmount;
+      const newRunningBalance = currentRunningBalance + lineImpact;
+      
       // Create customer statement line
       await this.createCustomerStatementLine({
         companyId: transaction.companyId,
@@ -1423,7 +1445,7 @@ export class DatabaseStorage implements IStorage {
         nettingBalance: '0.00',
         debitAmount: debitAmount.toFixed(2),
         creditAmount: creditAmount.toFixed(2),
-        runningBalance: (creditAmount - debitAmount).toFixed(2),
+        runningBalance: newRunningBalance.toFixed(2),
         bankStatementTransactionId: id,
       });
     }
@@ -2293,18 +2315,33 @@ export class DatabaseStorage implements IStorage {
       const totalCost = lines.reduce((sum, line) => sum + Number(line.cost || 0), 0);
       const totalDebits = lines.reduce((sum, line) => sum + Number(line.debitAmount || 0), 0);
       const totalCredits = lines.reduce((sum, line) => sum + Number(line.creditAmount || 0), 0);
-      const closingBalance = openingBalance + totalRevenue - totalCost + totalDebits - totalCredits;
 
-      // Process lines to ensure numeric values
-      const processedLines = lines.map(line => ({
-        ...line,
-        revenue: Number(line.revenue || 0),
-        cost: Number(line.cost || 0),
-        nettingBalance: Number(line.nettingBalance || 0),
-        debitAmount: Number(line.debitAmount || 0),
-        creditAmount: Number(line.creditAmount || 0),
-        runningBalance: Number(line.runningBalance || 0),
-      }));
+      // Recalculate running balance correctly
+      let runningBalance = openingBalance;
+      const processedLines = lines.map(line => {
+        const revenue = Number(line.revenue || 0);
+        const cost = Number(line.cost || 0);
+        const debitAmount = Number(line.debitAmount || 0);
+        const creditAmount = Number(line.creditAmount || 0);
+        
+        // Calculate the impact of this line on the running balance
+        // Revenue increases balance, Cost decreases balance
+        // Debit increases balance (payment received), Credit decreases balance (payment made)
+        const lineImpact = revenue - cost + debitAmount - creditAmount;
+        runningBalance += lineImpact;
+        
+        return {
+          ...line,
+          revenue: revenue,
+          cost: cost,
+          nettingBalance: revenue - cost,
+          debitAmount: debitAmount,
+          creditAmount: creditAmount,
+          runningBalance: parseFloat(runningBalance.toFixed(2)),
+        };
+      });
+
+      const closingBalance = runningBalance;
 
       return {
         openingBalance,
