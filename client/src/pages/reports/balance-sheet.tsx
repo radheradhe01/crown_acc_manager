@@ -5,17 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { formatCurrency, formatDate } from "@/lib/accounting-utils";
 
 export default function BalanceSheet() {
   const { currentCompany } = useCurrentCompany();
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dateFilter, setDateFilter] = useState<'specific' | 'all'>('specific');
 
   const { data: report, isLoading, error } = useQuery({
-    queryKey: ["/api/companies", currentCompany?.id, "reports", "balance-sheet", asOfDate],
+    queryKey: ["/api/companies", currentCompany?.id, "reports", "balance-sheet", dateFilter, asOfDate],
     queryFn: async () => {
-      const response = await fetch(`/api/companies/${currentCompany?.id}/reports/balance-sheet?asOfDate=${asOfDate}`);
+      const queryParams = dateFilter === 'all' ? '' : `?asOfDate=${asOfDate}`;
+      const response = await fetch(`/api/companies/${currentCompany?.id}/reports/balance-sheet${queryParams}`);
       if (!response.ok) {
         throw new Error('Failed to fetch balance sheet report');
       }
@@ -87,21 +90,54 @@ export default function BalanceSheet() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="max-w-md">
-            <Label htmlFor="asOfDate">Report Date</Label>
-            <Input
-              id="asOfDate"
-              type="date"
-              value={asOfDate}
-              onChange={(e) => setAsOfDate(e.target.value)}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md">
+            <div>
+              <Label htmlFor="dateFilter">Date Filter</Label>
+              <Select value={dateFilter} onValueChange={(value: 'specific' | 'all') => setDateFilter(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="specific">Specific Date</SelectItem>
+                  <SelectItem value="all">All Dates</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {dateFilter === 'specific' && (
+              <div>
+                <Label htmlFor="asOfDate">Report Date</Label>
+                <Input
+                  id="asOfDate"
+                  type="date"
+                  value={asOfDate}
+                  onChange={(e) => setAsOfDate(e.target.value)}
+                />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Balance Sheet Report */}
       {report && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <>
+          {/* Show note if all balances are zero */}
+          {(report.assets.total === 0 && report.liabilities.total === 0 && report.equity.total === 0) && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-blue-700">
+                  <Building className="h-5 w-5" />
+                  <span className="font-medium">Balance Sheet Information</span>
+                </div>
+                <p className="text-sm text-blue-600 mt-2">
+                  This balance sheet shows zero balances because there are no journal entries in the system yet. 
+                  Journal entries are created when you process transactions, invoices, or bills through the accounting system.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Assets */}
           <Card>
             <CardHeader>
@@ -110,7 +146,7 @@ export default function BalanceSheet() {
                 Assets
               </CardTitle>
               <p className="text-sm text-gray-600">
-                As of {formatDate(report.asOfDate)}
+                {dateFilter === 'all' ? 'All Dates' : `As of ${formatDate(report.asOfDate)}`}
               </p>
             </CardHeader>
             <CardContent>
@@ -207,10 +243,8 @@ export default function BalanceSheet() {
             </Card>
           </div>
         </div>
-      )}
 
-      {/* Balance Verification */}
-      {report && (
+        {/* Balance Verification */}
         <Card>
           <CardHeader>
             <CardTitle>Balance Verification</CardTitle>
@@ -255,6 +289,7 @@ export default function BalanceSheet() {
             </div>
           </CardContent>
         </Card>
+        </>
       )}
     </div>
   );

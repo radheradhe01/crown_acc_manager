@@ -1049,6 +1049,9 @@ export class DatabaseStorage implements IStorage {
     try {
       const currentDate = new Date();
       const defaultAsOfDate = asOfDate || currentDate.toISOString().split('T')[0];
+      
+      // If no asOfDate is provided, use a far future date to include all entries
+      const queryDate = asOfDate || '2099-12-31';
 
     // Get assets from chart of accounts
     const assetsQuery = db
@@ -1062,7 +1065,7 @@ export class DatabaseStorage implements IStorage {
             ) 
             FROM ${journalEntries} je 
             WHERE je.account_id = ${chartOfAccounts.id} 
-            AND je.entry_date <= ${defaultAsOfDate}), 0
+            AND je.entry_date <= ${queryDate}), 0
           )
         `,
       })
@@ -1092,7 +1095,7 @@ export class DatabaseStorage implements IStorage {
             ) 
             FROM ${journalEntries} je 
             WHERE je.account_id = ${chartOfAccounts.id} 
-            AND je.entry_date <= ${defaultAsOfDate}), 0
+            AND je.entry_date <= ${queryDate}), 0
           )
         `,
       })
@@ -1122,7 +1125,7 @@ export class DatabaseStorage implements IStorage {
             ) 
             FROM ${journalEntries} je 
             WHERE je.account_id = ${chartOfAccounts.id} 
-            AND je.entry_date <= ${defaultAsOfDate}), 0
+            AND je.entry_date <= ${queryDate}), 0
           )
         `,
       })
