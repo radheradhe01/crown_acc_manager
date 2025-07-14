@@ -2080,7 +2080,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS NUMERIC)), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` 
         })
         .from(expenseTransactions)
         .where(and(

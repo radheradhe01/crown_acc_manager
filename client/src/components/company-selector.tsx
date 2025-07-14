@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,11 @@ export function CompanySelector() {
   });
 
   // Set first company as current if none selected
-  if (!currentCompany && companies.length > 0) {
-    setCurrentCompany(companies[0]);
-  }
+  useEffect(() => {
+    if (!currentCompany && companies.length > 0) {
+      setCurrentCompany(companies[0]);
+    }
+  }, [currentCompany, companies, setCurrentCompany]);
 
   const handleCompanySelect = (company: Company) => {
     setCurrentCompany(company);
