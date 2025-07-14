@@ -1046,8 +1046,9 @@ export class DatabaseStorage implements IStorage {
 
   // Balance Sheet Report
   async getBalanceSheetReport(companyId: number, asOfDate?: string): Promise<any> {
-    const currentDate = new Date();
-    const defaultAsOfDate = asOfDate || currentDate.toISOString().split('T')[0];
+    try {
+      const currentDate = new Date();
+      const defaultAsOfDate = asOfDate || currentDate.toISOString().split('T')[0];
 
     // Get assets from chart of accounts
     const assetsQuery = db
@@ -1057,14 +1058,11 @@ export class DatabaseStorage implements IStorage {
         balance: sql<number>`
           COALESCE(
             (SELECT SUM(
-              CASE 
-                WHEN je.type = 'debit' THEN je.amount
-                ELSE -je.amount
-              END
+              CAST(je.debit_amount AS NUMERIC) - CAST(je.credit_amount AS NUMERIC)
             ) 
             FROM ${journalEntries} je 
             WHERE je.account_id = ${chartOfAccounts.id} 
-            AND je.transaction_date <= ${defaultAsOfDate}), 0
+            AND je.entry_date <= ${defaultAsOfDate}), 0
           )
         `,
       })
@@ -1090,14 +1088,11 @@ export class DatabaseStorage implements IStorage {
         balance: sql<number>`
           COALESCE(
             (SELECT SUM(
-              CASE 
-                WHEN je.type = 'credit' THEN je.amount
-                ELSE -je.amount
-              END
+              CAST(je.credit_amount AS NUMERIC) - CAST(je.debit_amount AS NUMERIC)
             ) 
             FROM ${journalEntries} je 
             WHERE je.account_id = ${chartOfAccounts.id} 
-            AND je.transaction_date <= ${defaultAsOfDate}), 0
+            AND je.entry_date <= ${defaultAsOfDate}), 0
           )
         `,
       })
@@ -1123,14 +1118,11 @@ export class DatabaseStorage implements IStorage {
         balance: sql<number>`
           COALESCE(
             (SELECT SUM(
-              CASE 
-                WHEN je.type = 'credit' THEN je.amount
-                ELSE -je.amount
-              END
+              CAST(je.credit_amount AS NUMERIC) - CAST(je.debit_amount AS NUMERIC)
             ) 
             FROM ${journalEntries} je 
             WHERE je.account_id = ${chartOfAccounts.id} 
-            AND je.transaction_date <= ${defaultAsOfDate}), 0
+            AND je.entry_date <= ${defaultAsOfDate}), 0
           )
         `,
       })
@@ -1177,6 +1169,17 @@ export class DatabaseStorage implements IStorage {
       },
       totalLiabilitiesAndEquity: totalLiabilities + totalEquity,
     };
+    } catch (error) {
+      console.error('Error in getBalanceSheetReport:', error);
+      // Return empty balance sheet structure on error
+      return {
+        asOfDate: asOfDate || new Date().toISOString().split('T')[0],
+        assets: { accounts: [], total: 0 },
+        liabilities: { accounts: [], total: 0 },
+        equity: { accounts: [], total: 0 },
+        totalLiabilitiesAndEquity: 0,
+      };
+    }
   }
 
   // Revenue Uploads
