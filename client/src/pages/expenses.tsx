@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit, Eye, Trash2, Filter, Calendar, DollarSign } from "lucide-react";
+import { Plus, Edit, Eye, Trash2, Filter, Calendar, DollarSign, ArrowLeft, TrendingUp } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,8 @@ export default function Expenses() {
   const [editingExpense, setEditingExpense] = useState<ExpenseTransaction | undefined>();
   const [filterType, setFilterType] = useState<string>("all");
   const [dateRange, setDateRange] = useState<string>("12_months");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [currentView, setCurrentView] = useState<"summary" | "category-details">("summary");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -68,8 +70,39 @@ export default function Expenses() {
       return false;
     }
     
+    // Category filter for detail view
+    if (selectedCategoryId && expense.expenseCategoryId !== selectedCategoryId) {
+      return false;
+    }
+    
     return true;
   });
+
+  // Calculate category summary
+  const categoryBreakdown = categories.map(category => {
+    const categoryExpenses = filteredExpenses.filter(expense => expense.expenseCategoryId === category.id);
+    const totalAmount = categoryExpenses.reduce((sum, expense) => sum + parseFloat(expense.totalAmount), 0);
+    const transactionCount = categoryExpenses.length;
+    
+    return {
+      category,
+      totalAmount,
+      transactionCount,
+      expenses: categoryExpenses
+    };
+  }).filter(item => item.totalAmount > 0).sort((a, b) => b.totalAmount - a.totalAmount);
+
+  const handleCategoryClick = (categoryId: number) => {
+    setSelectedCategoryId(categoryId);
+    setCurrentView("category-details");
+  };
+
+  const handleBackToSummary = () => {
+    setSelectedCategoryId(null);
+    setCurrentView("summary");
+  };
+
+  const selectedCategory = categories.find(cat => cat.id === selectedCategoryId);
 
   if (!currentCompany) {
     return (
@@ -85,12 +118,20 @@ export default function Expenses() {
   return (
     <>
       <Header
-        title="Expense Management"
-        description="Record and track business expenses with detailed categorization"
+        title={currentView === "summary" ? "Expense Management" : `${selectedCategory?.name} - Expenses`}
+        description={currentView === "summary" ? "Record and track business expenses with detailed categorization" : `Detailed view of expenses in ${selectedCategory?.name} category`}
         showActions={false}
       />
       
       <div className="space-y-6">
+        {/* Back Button for Category Details */}
+        {currentView === "category-details" && (
+          <Button variant="outline" onClick={handleBackToSummary}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Summary
+          </Button>
+        )}
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card>
@@ -119,11 +160,16 @@ export default function Expenses() {
           
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium">Total Tax</CardTitle>
+              <CardTitle className="text-base font-medium">
+                {currentView === "summary" ? "Total Tax" : "Category Transactions"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.salesTax), 0))}
+                {currentView === "summary" 
+                  ? formatCurrency(filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.salesTax), 0))
+                  : filteredExpenses.length
+                }
               </div>
             </CardContent>
           </Card>
@@ -172,81 +218,137 @@ export default function Expenses() {
           </Button>
         </div>
 
-        {/* Expense Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5" />
-              <span>Expense Transactions</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="p-8 text-center">
-                <p className="text-gray-500">Loading expenses...</p>
-              </div>
-            ) : filteredExpenses.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-gray-500 mb-4">No expenses found</p>
-                <Button onClick={() => setIsExpenseModalOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Record Your First Expense
-                </Button>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Payee</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Amount Before Tax</TableHead>
-                    <TableHead>Sales Tax</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredExpenses.map((expense) => (
-                    <TableRow key={expense.id}>
-                      <TableCell className="font-medium">{formatDate(expense.transactionDate)}</TableCell>
-                      <TableCell>
-                        <Badge variant={expense.transactionType === "EXPENSE" ? "default" : "secondary"}>
-                          {expense.transactionType}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{expense.payee}</TableCell>
-                      <TableCell>
-                        {categories.find(cat => cat.id === expense.expenseCategoryId)?.name || "Unknown"}
-                      </TableCell>
-                      <TableCell>{formatCurrency(parseFloat(expense.amountBeforeTax))}</TableCell>
-                      <TableCell>{formatCurrency(parseFloat(expense.salesTax))}</TableCell>
-                      <TableCell className="font-semibold">{formatCurrency(parseFloat(expense.totalAmount))}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="outline" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(expense)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+        {/* Summary View or Category Details */}
+        {currentView === "summary" ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <TrendingUp className="h-5 w-5" />
+                <span>Expense Summary by Category</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="p-8 text-center">
+                  <p className="text-gray-500">Loading expenses...</p>
+                </div>
+              ) : categoryBreakdown.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-gray-500 mb-4">No expenses found</p>
+                  <Button onClick={() => setIsExpenseModalOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Record Your First Expense
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Account Type</TableHead>
+                      <TableHead>Transactions</TableHead>
+                      <TableHead>Total Amount</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {categoryBreakdown.map((item) => (
+                      <TableRow key={item.category.id} className="hover:bg-gray-50">
+                        <TableCell className="font-medium">{item.category.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{item.category.accountType}</Badge>
+                        </TableCell>
+                        <TableCell>{item.transactionCount}</TableCell>
+                        <TableCell className="font-semibold text-red-600">
+                          {formatCurrency(item.totalAmount)}
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleCategoryClick(item.category.id)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <DollarSign className="h-5 w-5" />
+                <span>{selectedCategory?.name} - Detailed Transactions</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {filteredExpenses.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-gray-500 mb-4">No transactions found in this category</p>
+                  <Button onClick={() => setIsExpenseModalOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Transaction
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Payee</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Amount Before Tax</TableHead>
+                      <TableHead>Sales Tax</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredExpenses.map((expense) => (
+                      <TableRow key={expense.id}>
+                        <TableCell className="font-medium">{formatDate(expense.transactionDate)}</TableCell>
+                        <TableCell>
+                          <Badge variant={expense.transactionType === "EXPENSE" ? "default" : "secondary"}>
+                            {expense.transactionType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{expense.payee}</TableCell>
+                        <TableCell className="max-w-xs truncate">{expense.description}</TableCell>
+                        <TableCell>{formatCurrency(parseFloat(expense.amountBeforeTax))}</TableCell>
+                        <TableCell>{formatCurrency(parseFloat(expense.salesTax))}</TableCell>
+                        <TableCell className="font-semibold">{formatCurrency(parseFloat(expense.totalAmount))}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(expense)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Expense Form Modal */}
