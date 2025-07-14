@@ -947,84 +947,101 @@ export class DatabaseStorage implements IStorage {
 
   // P&L Report
   async getProfitLossReport(companyId: number, startDate?: string, endDate?: string): Promise<any> {
-    const currentDate = new Date();
-    const defaultStartDate = startDate || new Date(currentDate.getFullYear(), 0, 1).toISOString().split('T')[0];
-    const defaultEndDate = endDate || currentDate.toISOString().split('T')[0];
+    try {
+      const currentDate = new Date();
+      const defaultStartDate = startDate || new Date(currentDate.getFullYear(), 0, 1).toISOString().split('T')[0];
+      const defaultEndDate = endDate || currentDate.toISOString().split('T')[0];
 
-    // Get revenue from invoices
-    const revenueQuery = db
-      .select({
-        totalRevenue: sql<number>`sum(${invoices.amount})`,
-      })
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.companyId, companyId),
-          eq(invoices.status, 'PAID'),
-          gte(invoices.invoiceDate, defaultStartDate),
-          lte(invoices.invoiceDate, defaultEndDate)
+      // Get revenue from invoices (paid invoices)
+      const revenueQuery = db
+        .select({
+          totalRevenue: sql<number>`COALESCE(SUM(CAST(${invoices.amount} AS NUMERIC)), 0)`,
+        })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.companyId, companyId),
+            eq(invoices.status, 'PAID'),
+            gte(invoices.invoiceDate, defaultStartDate),
+            lte(invoices.invoiceDate, defaultEndDate)
+          )
+        );
+
+      // Get expenses from expense transactions
+      const expenseQuery = db
+        .select({
+          totalExpenses: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS NUMERIC)), 0)`,
+        })
+        .from(expenseTransactions)
+        .where(
+          and(
+            eq(expenseTransactions.companyId, companyId),
+            gte(expenseTransactions.transactionDate, defaultStartDate),
+            lte(expenseTransactions.transactionDate, defaultEndDate)
+          )
+        );
+
+      // Get expense categories breakdown
+      const expenseCategoriesQuery = db
+        .select({
+          categoryName: expenseCategories.name,
+          totalAmount: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS NUMERIC)), 0)`,
+        })
+        .from(expenseTransactions)
+        .innerJoin(expenseCategories, eq(expenseTransactions.expenseCategoryId, expenseCategories.id))
+        .where(
+          and(
+            eq(expenseTransactions.companyId, companyId),
+            gte(expenseTransactions.transactionDate, defaultStartDate),
+            lte(expenseTransactions.transactionDate, defaultEndDate)
+          )
         )
-      );
+        .groupBy(expenseCategories.name)
+        .orderBy(desc(sql`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS NUMERIC)), 0)`));
 
-    // Get expenses from bills
-    const expenseQuery = db
-      .select({
-        totalExpenses: sql<number>`sum(${bills.amount})`,
-      })
-      .from(bills)
-      .where(
-        and(
-          eq(bills.companyId, companyId),
-          eq(bills.status, 'PAID'),
-          gte(bills.billDate, defaultStartDate),
-          lte(bills.billDate, defaultEndDate)
-        )
-      );
+      const [revenueResult] = await revenueQuery;
+      const [expenseResult] = await expenseQuery;
+      const expenseCategoriesResult = await expenseCategoriesQuery;
 
-    // Get expense categories breakdown
-    const expenseCategoriesQuery = db
-      .select({
-        categoryName: expenseCategories.name,
-        totalAmount: sql<number>`sum(${transactions.amount})`,
-      })
-      .from(transactions)
-      .innerJoin(expenseCategories, eq(transactions.categoryId, expenseCategories.id))
-      .where(
-        and(
-          eq(transactions.companyId, companyId),
-          eq(transactions.transactionType, 'EXPENSE'),
-          gte(transactions.transactionDate, defaultStartDate),
-          lte(transactions.transactionDate, defaultEndDate)
-        )
-      )
-      .groupBy(expenseCategories.name)
-      .orderBy(desc(sql`sum(${transactions.amount})`));
+      const totalRevenue = Number(revenueResult?.totalRevenue || 0);
+      const totalExpenses = Number(expenseResult?.totalExpenses || 0);
+      const netIncome = totalRevenue - totalExpenses;
 
-    const [revenueResult] = await revenueQuery;
-    const [expenseResult] = await expenseQuery;
-    const expenseCategoriesResult = await expenseCategoriesQuery;
-
-    const totalRevenue = Number(revenueResult?.totalRevenue || 0);
-    const totalExpenses = Number(expenseResult?.totalExpenses || 0);
-    const netIncome = totalRevenue - totalExpenses;
-
-    return {
-      period: {
-        startDate: defaultStartDate,
-        endDate: defaultEndDate,
-      },
-      revenue: {
-        totalRevenue,
-      },
-      expenses: {
-        totalExpenses,
-        categories: expenseCategoriesResult.map((cat: any) => ({
-          categoryName: cat.categoryName,
-          totalAmount: Number(cat.totalAmount || 0),
-        })),
-      },
-      netIncome,
-    };
+      return {
+        period: {
+          startDate: defaultStartDate,
+          endDate: defaultEndDate,
+        },
+        revenue: {
+          totalRevenue,
+        },
+        expenses: {
+          totalExpenses,
+          categories: expenseCategoriesResult.map((cat: any) => ({
+            categoryName: cat.categoryName,
+            totalAmount: Number(cat.totalAmount || 0),
+          })),
+        },
+        netIncome,
+      };
+    } catch (error) {
+      console.error('Error in getProfitLossReport:', error);
+      // Return empty report structure on error
+      return {
+        period: {
+          startDate: startDate || new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
+          endDate: endDate || new Date().toISOString().split('T')[0],
+        },
+        revenue: {
+          totalRevenue: 0,
+        },
+        expenses: {
+          totalExpenses: 0,
+          categories: [],
+        },
+        netIncome: 0,
+      };
+    }
   }
 
   // Balance Sheet Report
@@ -2082,13 +2099,13 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(${invoices.amount} AS NUMERIC)), 0)` 
         })
         .from(invoices)
         .where(and(
           eq(invoices.companyId, companyId),
-          gte(invoices.issueDate, startDate),
-          lte(invoices.issueDate, endDate)
+          gte(invoices.invoiceDate, startDate),
+          lte(invoices.invoiceDate, endDate)
         ));
       
       return Number(result[0]?.total || 0);
@@ -2102,7 +2119,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS NUMERIC)), 0)` 
         })
         .from(expenseTransactions)
         .where(and(
@@ -2122,7 +2139,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db
         .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)` 
+          total: sql<number>`COALESCE(SUM(CAST(${invoices.amount} AS NUMERIC)), 0)` 
         })
         .from(invoices)
         .where(and(

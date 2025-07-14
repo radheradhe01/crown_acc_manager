@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Download, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
+import { Header } from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,18 +67,21 @@ export default function ProfitLoss() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold">Profit & Loss Statement</h1>
-          <p className="text-gray-600">{currentCompany.name}</p>
+    <>
+      <Header
+        title="Profit & Loss Statement"
+        description={`Financial performance report for ${currentCompany.name}`}
+        showActions={false}
+      />
+      
+      <div className="space-y-6">
+        {/* Export Button */}
+        <div className="flex justify-end">
+          <Button onClick={handleExportToPDF} className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export PDF
+          </Button>
         </div>
-        <Button onClick={handleExportToPDF} className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Export PDF
-        </Button>
-      </div>
 
       {/* Date Range Filter */}
       <Card>
@@ -214,6 +218,7 @@ export default function ProfitLoss() {
           </Card>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
