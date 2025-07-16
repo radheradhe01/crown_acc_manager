@@ -650,8 +650,29 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log(`Processing ${csvData.length} rows for upload ${uploadId}`);
       
+      // Get the bank account opening balance
+      const bankAccount = await this.getBankAccount(upload.bankAccountId);
+      if (!bankAccount) {
+        throw new Error("Bank account not found");
+      }
+      
+      // Get the current running balance from the last transaction
+      const [lastTransaction] = await db
+        .select()
+        .from(bankStatementTransactions)
+        .where(eq(bankStatementTransactions.bankAccountId, upload.bankAccountId))
+        .orderBy(desc(bankStatementTransactions.transactionDate), desc(bankStatementTransactions.id))
+        .limit(1);
+      
+      let runningBalance = lastTransaction ? 
+        parseFloat(lastTransaction.runningBalance.toString()) : 
+        parseFloat(bankAccount.openingBalance.toString());
+      
+      // Sort CSV data by date to process in chronological order
+      const sortedData = csvData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
       // Process each row of CSV data
-      for (const row of csvData) {
+      for (const row of sortedData) {
         console.log(`Processing row:`, row);
         
         // Parse the row data
@@ -686,7 +707,8 @@ export class DatabaseStorage implements IStorage {
           }
         }
         
-        const runningBalance = row.balance ? parseFloat(row.balance.toString()) : 0;
+        // Calculate the new running balance
+        runningBalance = runningBalance + creditAmount - debitAmount;
 
         // Get smart categorization suggestions
         const suggestions = await this.suggestTransactionCategorization(
