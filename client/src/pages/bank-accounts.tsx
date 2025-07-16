@@ -64,11 +64,15 @@ export default function BankAccounts() {
       console.log("Sending account data:", accountData);
 
       if (editingAccount) {
-        const response = await apiRequest("PUT", `/api/bank-accounts/${editingAccount.id}`, accountData);
-        return response.json();
+        return await apiRequest(`/api/bank-accounts/${editingAccount.id}`, {
+          method: "PUT",
+          body: accountData,
+        });
       } else {
-        const response = await apiRequest("POST", "/api/bank-accounts", accountData);
-        return response.json();
+        return await apiRequest("/api/bank-accounts", {
+          method: "POST",
+          body: accountData,
+        });
       }
     },
     onSuccess: () => {
@@ -92,7 +96,9 @@ export default function BankAccounts() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/bank-accounts/${id}`);
+      await apiRequest(`/api/bank-accounts/${id}`, {
+        method: "DELETE",
+      });
     },
     onSuccess: () => {
       // Invalidate both the specific query and refetch
