@@ -356,11 +356,45 @@ export class DatabaseStorage implements IStorage {
 
   // Bank Accounts
   async getBankAccounts(companyId: number): Promise<BankAccount[]> {
+    // Get all bank accounts for the company
+    const accounts = await db
+      .select()
+      .from(bankAccounts)
+      .where(eq(bankAccounts.companyId, companyId))
+      .orderBy(asc(bankAccounts.accountName));
+
+    // Update current balance for each account based on latest bank statement transactions
+    for (const account of accounts) {
+      await this.updateBankAccountBalance(account.id);
+    }
+
+    // Return the accounts with updated balances
     return await db
       .select()
       .from(bankAccounts)
       .where(eq(bankAccounts.companyId, companyId))
       .orderBy(asc(bankAccounts.accountName));
+  }
+
+  private async updateBankAccountBalance(bankAccountId: number): Promise<void> {
+    // Get the latest bank statement transaction for this account
+    const [latestTransaction] = await db
+      .select()
+      .from(bankStatementTransactions)
+      .where(eq(bankStatementTransactions.bankAccountId, bankAccountId))
+      .orderBy(desc(bankStatementTransactions.transactionDate), desc(bankStatementTransactions.id))
+      .limit(1);
+
+    if (latestTransaction) {
+      // Update the bank account's current balance to match the latest transaction's running balance
+      await db
+        .update(bankAccounts)
+        .set({ 
+          currentBalance: latestTransaction.runningBalance,
+          updatedAt: new Date()
+        })
+        .where(eq(bankAccounts.id, bankAccountId));
+    }
   }
 
   async getBankAccount(id: number): Promise<BankAccount | undefined> {
@@ -684,6 +718,9 @@ export class DatabaseStorage implements IStorage {
         processedDate: new Date(),
         processedRows: csvData.length,
       });
+      
+      // Update the bank account balance after processing all transactions
+      await this.updateBankAccountBalance(upload.bankAccountId);
       
       console.log(`Successfully processed ${csvData.length} rows for upload ${uploadId}`);
     } catch (error) {
@@ -1472,6 +1509,9 @@ export class DatabaseStorage implements IStorage {
         bankStatementTransactionId: id,
       });
     }
+    
+    // Update the bank account balance after categorization
+    await this.updateBankAccountBalance(transaction.bankAccountId);
     
     return updatedTransaction;
   }
