@@ -15,6 +15,7 @@ export const useCurrentCompany = create<CurrentCompanyState>()(
     }),
     {
       name: 'current-company-storage',
+      version: 1, // Force reset of stored data
     }
   )
 );

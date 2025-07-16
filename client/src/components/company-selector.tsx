@@ -21,14 +21,16 @@ export function CompanySelector() {
     queryKey: ["/api/companies"],
   });
 
-  // Set first company as current if none selected, prioritize MCM company
+  // Set MCM company as default and clear any incorrect persisted company
   useEffect(() => {
-    if (!currentCompany && companies.length > 0) {
-      // Find MCM company (company 1) and set it as default
+    if (companies.length > 0) {
+      // Always prioritize MCM company (company 1) where the bank accounts exist
       const mcmCompany = companies.find(c => c.name === 'MCM' || c.id === 1);
-      setCurrentCompany(mcmCompany || companies[0]);
+      if (mcmCompany && (!currentCompany || currentCompany.id !== mcmCompany.id)) {
+        setCurrentCompany(mcmCompany);
+      }
     }
-  }, [currentCompany, companies, setCurrentCompany]);
+  }, [companies, setCurrentCompany]);
 
   const handleCompanySelect = (company: Company) => {
     setCurrentCompany(company);
