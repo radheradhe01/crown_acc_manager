@@ -78,7 +78,8 @@ export function TransactionFormModal({ isOpen, onClose }: TransactionFormModalPr
       const expenseData = {
         ...data,
         companyId: currentCompany?.id,
-        totalAmount: (parseFloat(data.amountBeforeTax) + parseFloat(data.salesTax)).toFixed(2)
+        totalAmount: (parseFloat(data.amountBeforeTax) + parseFloat(data.salesTax)).toFixed(2),
+        vendorId: data.vendorId > 0 ? data.vendorId : null
       };
       return await apiRequest(`/api/companies/${currentCompany?.id}/expense-transactions`, {
         method: "POST",
@@ -107,10 +108,10 @@ export function TransactionFormModal({ isOpen, onClose }: TransactionFormModalPr
     mutationFn: async (data: any) => {
       const invoiceData = {
         companyId: currentCompany?.id,
-        customerId: data.customerId,
-        invoiceNumber: data.invoiceNumber,
+        customerId: data.customerId > 0 ? data.customerId : null,
+        invoiceNumber: data.invoiceNumber || `INV-${Date.now()}`,
         issueDate: data.transactionDate,
-        dueDate: data.dueDate,
+        dueDate: data.dueDate || data.transactionDate,
         subtotal: parseFloat(data.amount),
         taxAmount: 0,
         totalAmount: parseFloat(data.amount),
@@ -208,6 +209,35 @@ export function TransactionFormModal({ isOpen, onClose }: TransactionFormModalPr
   const handleExpenseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentCompany) return;
+    
+    // Validate required fields
+    if (!expenseForm.expenseCategoryId || expenseForm.expenseCategoryId === 0) {
+      toast({
+        title: "Error",
+        description: "Please select an expense category",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!expenseForm.payee.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a payee name",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!expenseForm.amountBeforeTax || parseFloat(expenseForm.amountBeforeTax) <= 0) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid amount",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     expenseMutation.mutate(expenseForm);
   };
 
