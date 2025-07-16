@@ -21,15 +21,25 @@ export function CompanySelector() {
     queryKey: ["/api/companies"],
   });
 
-  // Set first company as current if none selected
+  // Set first company as current if none selected, prioritize MCM company
   useEffect(() => {
     if (!currentCompany && companies.length > 0) {
-      setCurrentCompany(companies[0]);
+      // Find MCM company (company 1) and set it as default
+      const mcmCompany = companies.find(c => c.name === 'MCM' || c.id === 1);
+      setCurrentCompany(mcmCompany || companies[0]);
     }
   }, [currentCompany, companies, setCurrentCompany]);
 
   const handleCompanySelect = (company: Company) => {
     setCurrentCompany(company);
+  };
+
+  // Force switch to MCM company if needed
+  const handleForceSwitch = () => {
+    const mcmCompany = companies.find(c => c.name === 'MCM' || c.id === 1);
+    if (mcmCompany) {
+      setCurrentCompany(mcmCompany);
+    }
   };
 
   return (
