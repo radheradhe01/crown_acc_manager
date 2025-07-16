@@ -57,8 +57,8 @@ export default function BankAccounts() {
       const accountData = {
         ...data,
         companyId: currentCompany?.id || 0,
-        openingBalance: data.openingBalance.toString(),
-        currentBalance: data.openingBalance.toString(), // Set current balance to opening balance for new accounts
+        openingBalance: data.openingBalance,
+        currentBalance: data.openingBalance, // Set current balance to opening balance for new accounts
       };
 
       console.log("Sending account data:", accountData);
