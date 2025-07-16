@@ -79,7 +79,10 @@ export default function Categories() {
 
   const createCategoryMutation = useMutation({
     mutationFn: async (data: InsertExpenseCategory) => {
-      return await apiRequest(`/api/companies/${currentCompany?.id}/expense-categories`, "POST", data);
+      return await apiRequest(`/api/companies/${currentCompany?.id}/expense-categories`, {
+        method: "POST",
+        body: data
+      });
     },
     onSuccess: () => {
       toast({
@@ -101,7 +104,10 @@ export default function Categories() {
 
   const updateCategoryMutation = useMutation({
     mutationFn: async (data: { id: number; updates: Partial<ExpenseCategory> }) => {
-      return await apiRequest(`/api/companies/${currentCompany?.id}/expense-categories/${data.id}`, "PATCH", data.updates);
+      return await apiRequest(`/api/companies/${currentCompany?.id}/expense-categories/${data.id}`, {
+        method: "PATCH",
+        body: data.updates
+      });
     },
     onSuccess: () => {
       toast({
@@ -123,7 +129,9 @@ export default function Categories() {
 
   const deleteCategoryMutation = useMutation({
     mutationFn: async (id: number) => {
-      return await apiRequest(`/api/companies/${currentCompany?.id}/expense-categories/${id}`, "DELETE");
+      return await apiRequest(`/api/companies/${currentCompany?.id}/expense-categories/${id}`, {
+        method: "DELETE"
+      });
     },
     onSuccess: () => {
       toast({

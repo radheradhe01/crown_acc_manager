@@ -109,7 +109,10 @@ export function EnhancedCategorySelector({
         ...data,
         companyId: currentCompany?.id
       };
-      return await apiRequest("POST", `/api/companies/${currentCompany?.id}/expense-categories`, categoryData);
+      return await apiRequest(`/api/companies/${currentCompany?.id}/expense-categories`, {
+        method: "POST",
+        body: categoryData
+      });
     },
     onSuccess: (newCategory) => {
       toast({
