@@ -244,7 +244,7 @@ export default function BankAccounts() {
                 <div>
                   <h3 className="font-semibold text-gray-900">Total Balance</h3>
                   <p className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(bankAccounts.reduce((sum, acc) => sum + (acc.currentBalance || 0), 0))}
+                    {formatCurrency(bankAccounts.reduce((sum, acc) => sum + (parseFloat(acc.currentBalance?.toString() || '0') || 0), 0))}
                   </p>
                 </div>
               </div>
