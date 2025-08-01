@@ -25,9 +25,16 @@ export default function Customers() {
 
   const deleteMutation = useMutation({
     mutationFn: async (customerId: number) => {
-      await apiRequest(`/api/customers/${customerId}`, {
+      const response = await fetch(`/api/customers/${customerId}`, {
         method: "DELETE",
+        credentials: "include",
       });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`${response.status}: ${text || response.statusText}`);
+      }
+      // No need to parse JSON for DELETE requests that return 204
+      return null;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/customers`] });
