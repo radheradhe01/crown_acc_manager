@@ -62,7 +62,7 @@ export default function Categories() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50); // Show more categories by default
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -167,6 +167,7 @@ export default function Categories() {
       description: formData.description,
       mainAccountType: formData.mainAccountType,
       detailType: formData.detailType,
+      companyId: currentCompany.id,
     };
 
     if (editingCategory) {

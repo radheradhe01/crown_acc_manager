@@ -167,7 +167,7 @@ export default function Expenses() {
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
                 {currentView === "summary" 
-                  ? formatCurrency(filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.salesTax), 0))
+                  ? formatCurrency(filteredExpenses.reduce((sum, exp) => sum + parseFloat(exp.salesTax || "0"), 0))
                   : filteredExpenses.length
                 }
               </div>
@@ -256,7 +256,7 @@ export default function Expenses() {
                       <TableRow key={item.category.id} className="hover:bg-gray-50">
                         <TableCell className="font-medium">{item.category.name}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{item.category.accountType}</Badge>
+                          <Badge variant="outline">{item.category.mainAccountType || "Uncategorized"}</Badge>
                         </TableCell>
                         <TableCell>{item.transactionCount}</TableCell>
                         <TableCell className="font-semibold text-red-600">
@@ -322,7 +322,7 @@ export default function Expenses() {
                         <TableCell>{expense.payee}</TableCell>
                         <TableCell className="max-w-xs truncate">{expense.description}</TableCell>
                         <TableCell>{formatCurrency(parseFloat(expense.amountBeforeTax))}</TableCell>
-                        <TableCell>{formatCurrency(parseFloat(expense.salesTax))}</TableCell>
+                        <TableCell>{formatCurrency(parseFloat(expense.salesTax || "0"))}</TableCell>
                         <TableCell className="font-semibold">{formatCurrency(parseFloat(expense.totalAmount))}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
@@ -409,9 +409,15 @@ function ExpenseFormModal({
       };
 
       if (expense) {
-        return await apiRequest("PUT", `/api/companies/${currentCompany?.id}/expense-transactions/${expense.id}`, expenseData);
+        return await apiRequest(`/api/companies/${currentCompany?.id}/expense-transactions/${expense.id}`, {
+          method: "PUT",
+          body: expenseData
+        });
       } else {
-        return await apiRequest("POST", `/api/companies/${currentCompany?.id}/expense-transactions`, expenseData);
+        return await apiRequest(`/api/companies/${currentCompany?.id}/expense-transactions`, {
+          method: "POST",
+          body: expenseData
+        });
       }
     },
     onSuccess: () => {
