@@ -38,7 +38,6 @@ const reportItems = [
   { path: "/reports/outstanding-balances", label: "Outstanding Balances", icon: FileText },
   { path: "/reports/general-ledger", label: "General Ledger", icon: Book },
   { path: "/reports/trial-balance", label: "Trial Balance", icon: Calculator },
-  { path: "/reports/expense-categories", label: "Expense Categories", icon: PieChart },
   { path: "/reports/profit-loss", label: "Profit & Loss", icon: TrendingUp },
   { path: "/reports/balance-sheet", label: "Balance Sheet", icon: Building },
 ];
