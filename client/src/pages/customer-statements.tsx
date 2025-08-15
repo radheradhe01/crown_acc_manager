@@ -82,6 +82,8 @@ export default function CustomerStatements() {
   const [searchTerm, setSearchTerm] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerStatement | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const { data: statementsData, isLoading, error } = useQuery<CustomerStatementsResponse>({
     queryKey: [`/api/companies/${currentCompany?.id}/customer-statements`, currentPage, pageSize],
@@ -90,7 +92,22 @@ export default function CustomerStatements() {
 
   // Get detailed customer statement lines for selected customer
   const { data: customerDetails, isLoading: isLoadingDetails } = useQuery<CustomerStatementSummary>({
-    queryKey: [`/api/companies/${currentCompany?.id}/customers/${selectedCustomer?.id}/statement-summary`],
+    queryKey: [`/api/companies/${currentCompany?.id}/customers/${selectedCustomer?.id}/statement-summary`, startDate, endDate],
+    queryFn: async () => {
+      if (!currentCompany?.id || !selectedCustomer?.id) return null;
+      
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      
+      const url = `/api/companies/${currentCompany.id}/customers/${selectedCustomer.id}/statement-summary?${params.toString()}`;
+      
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    },
     enabled: !!currentCompany?.id && !!selectedCustomer?.id,
   });
 
@@ -211,6 +228,48 @@ export default function CustomerStatements() {
             </div>
           </div>
         </div>
+
+        {/* Date Filter Controls */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Filter by Date Range
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">From:</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-auto"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">To:</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-auto"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="ml-auto"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Customer Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
