@@ -17,6 +17,7 @@ import { z } from "zod";
 import { Plus, Edit, Trash2, Users, Shield, Settings, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useCurrentCompany } from "@/hooks/use-current-company";
 import type { User, UserRole, Permission, UserRoleAssignment } from "@shared/schema";
 
 const userSchema = z.object({
@@ -34,6 +35,7 @@ const roleSchema = z.object({
 });
 
 export default function UserManagement() {
+  const { currentCompany } = useCurrentCompany();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
@@ -43,28 +45,28 @@ export default function UserManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch users
+  // Fetch company users
   const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
-    queryKey: ["/api/users"],
-    enabled: activeTab === "users",
+    queryKey: [`/api/companies/${currentCompany?.id}/users`],
+    enabled: activeTab === "users" && !!currentCompany?.id,
   });
 
   // Fetch roles
   const { data: roles = [], isLoading: rolesLoading } = useQuery<UserRole[]>({
-    queryKey: ["/api/roles"],
-    enabled: activeTab === "roles",
+    queryKey: [`/api/companies/${currentCompany?.id}/roles`],
+    enabled: activeTab === "roles" && !!currentCompany?.id,
   });
 
   // Fetch permissions
   const { data: permissions = [], isLoading: permissionsLoading } = useQuery<Permission[]>({
-    queryKey: ["/api/permissions"],
-    enabled: activeTab === "roles",
+    queryKey: [`/api/companies/${currentCompany?.id}/permissions`],
+    enabled: activeTab === "roles" && !!currentCompany?.id,
   });
 
   // Fetch role permissions for selected role
   const { data: rolePermissions = [] } = useQuery<Permission[]>({
-    queryKey: ["/api/roles", selectedRole?.id, "permissions"],
-    enabled: !!selectedRole,
+    queryKey: [`/api/companies/${currentCompany?.id}/roles`, selectedRole?.id, "permissions"],
+    enabled: !!selectedRole && !!currentCompany?.id,
   });
 
   // User form
@@ -93,13 +95,19 @@ export default function UserManagement() {
   const userMutation = useMutation({
     mutationFn: async (data: z.infer<typeof userSchema>) => {
       if (selectedUser) {
-        return apiRequest(`/api/users/${selectedUser.id}`, "PUT", data);
+        return apiRequest(`/api/companies/${currentCompany?.id}/users/${selectedUser.id}`, {
+          method: "PUT", 
+          body: data
+        });
       } else {
-        return apiRequest("/api/users", "POST", data);
+        return apiRequest(`/api/companies/${currentCompany?.id}/users`, {
+          method: "POST", 
+          body: data
+        });
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/users`] });
       setShowUserDialog(false);
       setSelectedUser(null);
       userForm.reset();
@@ -121,13 +129,19 @@ export default function UserManagement() {
   const roleMutation = useMutation({
     mutationFn: async (data: z.infer<typeof roleSchema>) => {
       if (selectedRole) {
-        return apiRequest(`/api/roles/${selectedRole.id}`, "PUT", data);
+        return apiRequest(`/api/companies/${currentCompany?.id}/roles/${selectedRole.id}`, {
+          method: "PUT", 
+          body: data
+        });
       } else {
-        return apiRequest("/api/roles", "POST", data);
+        return apiRequest(`/api/companies/${currentCompany?.id}/roles`, {
+          method: "POST", 
+          body: data
+        });
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/roles`] });
       setShowRoleDialog(false);
       setSelectedRole(null);
       roleForm.reset();
@@ -148,10 +162,12 @@ export default function UserManagement() {
   // Delete User
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest(`/api/users/${userId}`, "DELETE");
+      return apiRequest(`/api/companies/${currentCompany?.id}/users/${userId}`, {
+        method: "DELETE"
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/users`] });
       toast({
         title: "Success",
         description: "User deleted successfully",
@@ -169,10 +185,12 @@ export default function UserManagement() {
   // Delete Role
   const deleteRoleMutation = useMutation({
     mutationFn: async (roleId: number) => {
-      return apiRequest(`/api/roles/${roleId}`, "DELETE");
+      return apiRequest(`/api/companies/${currentCompany?.id}/roles/${roleId}`, {
+        method: "DELETE"
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/roles`] });
       toast({
         title: "Success",
         description: "Role deleted successfully",
@@ -191,13 +209,17 @@ export default function UserManagement() {
   const togglePermissionMutation = useMutation({
     mutationFn: async ({ roleId, permissionId, isAssigned }: { roleId: number; permissionId: number; isAssigned: boolean }) => {
       if (isAssigned) {
-        return apiRequest(`/api/roles/${roleId}/permissions/${permissionId}`, "DELETE");
+        return apiRequest(`/api/companies/${currentCompany?.id}/roles/${roleId}/permissions/${permissionId}`, {
+          method: "DELETE"
+        });
       } else {
-        return apiRequest(`/api/roles/${roleId}/permissions/${permissionId}`, "POST");
+        return apiRequest(`/api/companies/${currentCompany?.id}/roles/${roleId}/permissions/${permissionId}`, {
+          method: "POST"
+        });
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/roles", selectedRole?.id, "permissions"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/roles`, selectedRole?.id, "permissions"] });
       toast({
         title: "Success",
         description: "Permission updated successfully",
@@ -229,7 +251,7 @@ export default function UserManagement() {
     roleForm.reset({
       name: role.name,
       description: role.description || "",
-      isSystemRole: role.isSystemRole,
+      isSystemRole: role.isSystemRole || false,
     });
     setShowRoleDialog(true);
   };
@@ -265,6 +287,17 @@ export default function UserManagement() {
       isAssigned,
     });
   };
+
+  if (!currentCompany) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Company Selected</h2>
+          <p className="text-gray-600">Please select a company to manage users and roles.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -425,7 +458,7 @@ export default function UserManagement() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleEditRole(role)}
-                              disabled={role.isSystemRole}
+                              disabled={role.isSystemRole || false}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -433,7 +466,7 @@ export default function UserManagement() {
                               variant="outline"
                               size="sm"
                               onClick={() => deleteRoleMutation.mutate(role.id)}
-                              disabled={deleteRoleMutation.isPending || role.isSystemRole}
+                              disabled={deleteRoleMutation.isPending || (role.isSystemRole || false)}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>

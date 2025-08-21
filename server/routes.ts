@@ -1096,13 +1096,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User Management Routes
-  app.get("/api/users", requirePermission("users", "read"), async (req, res) => {
+  // Company-specific User Management Routes
+  app.get("/api/companies/:companyId/users", requirePermission("users", "read"), async (req, res) => {
     try {
-      const users = await storage.getUsers();
+      const companyId = parseInt(req.params.companyId);
+      const users = await storage.getCompanyUsers(companyId);
       res.json(users);
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("Error fetching company users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
     }
   });
@@ -1121,9 +1122,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/users", requirePermission("users", "write"), async (req, res) => {
+  app.post("/api/companies/:companyId/users", requirePermission("users", "write"), async (req, res) => {
     try {
-      const user = await storage.createUser(req.body);
+      const companyId = parseInt(req.params.companyId);
+      const user = await storage.createCompanyUser(companyId, req.body);
       res.status(201).json(user);
     } catch (error) {
       console.error("Error creating user:", error);
@@ -1131,7 +1133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/users/:id", requirePermission("users", "write"), async (req, res) => {
+  app.put("/api/companies/:companyId/users/:id", requirePermission("users", "write"), async (req, res) => {
     try {
       const id = req.params.id;
       const user = await storage.updateUser(id, req.body);
@@ -1142,7 +1144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/users/:id", requirePermission("users", "delete"), async (req, res) => {
+  app.delete("/api/companies/:companyId/users/:id", requirePermission("users", "delete"), async (req, res) => {
     try {
       const id = req.params.id;
       await storage.deleteUser(id);
@@ -1154,12 +1156,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Role Management Routes
-  app.get("/api/roles", requirePermission("roles", "read"), async (req, res) => {
+  app.get("/api/companies/:companyId/roles", requirePermission("roles", "read"), async (req, res) => {
     try {
-      const roles = await storage.getRoles();
+      const companyId = parseInt(req.params.companyId);
+      const roles = await storage.getCompanyRoles(companyId);
       res.json(roles);
     } catch (error) {
-      console.error("Error fetching roles:", error);
+      console.error("Error fetching company roles:", error);
       res.status(500).json({ message: "Failed to fetch roles" });
     }
   });
@@ -1178,7 +1181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/roles", requirePermission("roles", "write"), async (req, res) => {
+  app.post("/api/companies/:companyId/roles", requirePermission("roles", "write"), async (req, res) => {
     try {
       const validatedData = insertUserRoleSchema.parse(req.body);
       const role = await storage.createRole(validatedData);
@@ -1189,7 +1192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/roles/:id", requirePermission("roles", "write"), async (req, res) => {
+  app.put("/api/companies/:companyId/roles/:id", requirePermission("roles", "write"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const validatedData = insertUserRoleSchema.partial().parse(req.body);
@@ -1201,7 +1204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/roles/:id", requirePermission("roles", "delete"), async (req, res) => {
+  app.delete("/api/companies/:companyId/roles/:id", requirePermission("roles", "delete"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteRole(id);
@@ -1213,7 +1216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Permission Management Routes
-  app.get("/api/permissions", requirePermission("roles", "read"), async (req, res) => {
+  app.get("/api/companies/:companyId/permissions", requirePermission("roles", "read"), async (req, res) => {
     try {
       const permissions = await storage.getPermissions();
       res.json(permissions);
@@ -1223,7 +1226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/roles/:id/permissions", requirePermission("roles", "read"), async (req, res) => {
+  app.get("/api/companies/:companyId/roles/:id/permissions", requirePermission("roles", "read"), async (req, res) => {
     try {
       const roleId = parseInt(req.params.id);
       const permissions = await storage.getRolePermissions(roleId);

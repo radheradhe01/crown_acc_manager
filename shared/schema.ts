@@ -113,7 +113,7 @@ export const chartOfAccounts = pgTable("chart_of_accounts", {
   accountCode: text("account_code").notNull(),
   accountName: text("account_name").notNull(),
   accountType: text("account_type").notNull(), // Asset, Liability, Equity, Revenue, Expense
-  parentAccountId: integer("parent_account_id").references(() => chartOfAccounts.id),
+  parentAccountId: integer("parent_account_id"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -626,7 +626,6 @@ export type Permission = typeof permissions.$inferSelect;
 export type RolePermission = typeof rolePermissions.$inferSelect;
 export type UserRoleAssignment = typeof userRoleAssignments.$inferSelect;
 export type UserSession = typeof userSessions.$inferSelect;
-export type User = typeof users.$inferSelect;
 
 // Insert types
 export type InsertCompany = z.infer<typeof insertCompanySchema>;

@@ -204,12 +204,19 @@ export interface IStorage {
   deleteUser(id: string): Promise<void>;
   upsertUser(user: UpsertUser): Promise<User>;
 
+  // Company-specific User Management
+  getCompanyUsers(companyId: number): Promise<User[]>;
+  createCompanyUser(companyId: number, user: UpsertUser): Promise<User>;
+
   // Role Management
   getRoles(): Promise<UserRole[]>;
   getRole(id: number): Promise<UserRole | undefined>;
   createRole(role: InsertUserRole): Promise<UserRole>;
   updateRole(id: number, role: Partial<InsertUserRole>): Promise<UserRole>;
   deleteRole(id: number): Promise<void>;
+
+  // Company-specific Role Management
+  getCompanyRoles(companyId: number): Promise<UserRole[]>;
 
   // Permission Management
   getPermissions(): Promise<Permission[]>;
@@ -1650,6 +1657,52 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  // Company-specific User Management
+  async getCompanyUsers(companyId: number): Promise<User[]> {
+    const companyUsersList = await db
+      .select({ user: users })
+      .from(userRoleAssignments)
+      .innerJoin(users, eq(userRoleAssignments.userId, users.id))
+      .where(and(
+        eq(userRoleAssignments.companyId, companyId),
+        eq(userRoleAssignments.isActive, true)
+      ))
+      .groupBy(users.id)
+      .orderBy(users.email);
+    
+    return companyUsersList.map(cu => cu.user);
+  }
+
+  async createCompanyUser(companyId: number, userData: UpsertUser): Promise<User> {
+    // First create or get the user
+    const user = await this.upsertUser(userData);
+    
+    // Then check if they already have a role assignment for this company
+    const existingAssignment = await db
+      .select()
+      .from(userRoleAssignments)
+      .where(and(
+        eq(userRoleAssignments.userId, user.id),
+        eq(userRoleAssignments.companyId, companyId)
+      ))
+      .limit(1);
+    
+    if (existingAssignment.length === 0) {
+      // Assign default "User" role to new company user
+      const defaultRole = await db
+        .select()
+        .from(userRoles)
+        .where(eq(userRoles.name, "User"))
+        .limit(1);
+      
+      if (defaultRole.length > 0) {
+        await this.assignRoleToUser(user.id, defaultRole[0].id, companyId);
+      }
+    }
+    
+    return user;
+  }
+
   // Role Management
   async getRoles(): Promise<UserRole[]> {
     return await db.select().from(userRoles).orderBy(userRoles.name);
@@ -1676,6 +1729,21 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRole(id: number): Promise<void> {
     await db.delete(userRoles).where(eq(userRoles.id, id));
+  }
+
+  // Company-specific Role Management
+  async getCompanyRoles(companyId: number): Promise<UserRole[]> {
+    // Get all system roles (available to all companies) plus any custom roles for this company
+    return await db
+      .select()
+      .from(userRoles)
+      .where(or(
+        eq(userRoles.isSystemRole, true),
+        // For now, all roles are system-wide. In a more complex system, 
+        // you might have company-specific custom roles
+        eq(userRoles.isSystemRole, false)
+      ))
+      .orderBy(userRoles.name);
   }
 
   // Permission Management
