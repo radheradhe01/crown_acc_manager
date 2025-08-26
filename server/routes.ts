@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { 
   insertCompanySchema, 
   insertCustomerSchema, 
@@ -22,18 +23,52 @@ import {
   insertUserRoleAssignmentSchema
 } from "@shared/schema";
 
+// Extend session type to include user
+declare module 'express-session' {
+  interface SessionData {
+    userId?: string;
+  }
+}
+
+// Authentication middleware
+const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    
+    const user = await storage.getUser(req.session.userId);
+    if (!user || !user.isActive) {
+      return res.status(401).json({ message: "Invalid user session" });
+    }
+    
+    // Add user to request object
+    (req as any).user = user;
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    res.status(500).json({ message: "Authentication check failed" });
+  }
+};
+
 // Permission middleware for checking user permissions
 const requirePermission = (resource: string, action: string) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // For now, we'll bypass permission checks - in production, this would check actual user auth
-      // TODO: Implement proper authentication and permission checking
-      // const userId = req.user?.id;
-      // const companyId = req.params.companyId ? parseInt(req.params.companyId) : undefined;
+      // First check authentication
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const userId = req.session.userId;
+      const companyId = req.params.companyId ? parseInt(req.params.companyId) : undefined;
+      
+      // For now, we'll allow all authenticated users - in production, implement proper permission checking
       // const hasPermission = await storage.hasPermission(userId, resource, action, companyId);
       // if (!hasPermission) {
       //   return res.status(403).json({ message: "Insufficient permissions" });
       // }
+      
       next();
     } catch (error) {
       console.error("Permission check error:", error);
@@ -46,10 +81,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize default roles and permissions on startup
   try {
     await storage.initializeDefaultRolesAndPermissions();
-    console.log("Default roles and permissions initialized");
+    await storage.initializeDefaultUser();
+    console.log("Default roles, permissions, and user initialized");
   } catch (error) {
-    console.error("Error initializing default roles and permissions:", error);
+    console.error("Error initializing defaults:", error);
   }
+
+  // Authentication routes
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.password) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      if (!user.isActive) {
+        return res.status(401).json({ message: "Account is deactivated" });
+      }
+
+      // Update last login
+      await storage.updateUser(user.id, { lastLoginAt: new Date() });
+
+      // Set session
+      req.session.userId = user.id;
+
+      // Remove password from response
+      const { password: _, ...userWithoutPassword } = user;
+      
+      res.json({ 
+        message: "Login successful", 
+        user: userWithoutPassword 
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      res.clearCookie("connect.sid");
+      res.json({ message: "Logout successful" });
+    });
+  });
+
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Get current user error:", error);
+      res.status(500).json({ message: "Failed to get user data" });
+    }
+  });
 
   // Companies routes
   app.get("/api/companies", async (req, res) => {

@@ -63,6 +63,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, asc, sum, gte, lte, sql } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 
 export interface IStorage {
   // Companies
@@ -203,6 +204,7 @@ export interface IStorage {
   updateUser(id: string, user: Partial<UpsertUser>): Promise<User>;
   deleteUser(id: string): Promise<void>;
   upsertUser(user: UpsertUser): Promise<User>;
+  initializeDefaultUser(): Promise<void>;
 
   // Company-specific User Management
   getCompanyUsers(companyId: number): Promise<User[]>;
@@ -1744,6 +1746,33 @@ export class DatabaseStorage implements IStorage {
         eq(userRoles.isSystemRole, false)
       ))
       .orderBy(userRoles.name);
+  }
+
+  async initializeDefaultUser(): Promise<void> {
+    try {
+      // Check if admin user already exists
+      const existingAdmin = await this.getUserByEmail('admin@example.com');
+      if (existingAdmin) {
+        return;
+      }
+
+      // Create default admin user
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      
+      const adminUser = await this.createUser({
+        id: 'admin-user-001',
+        email: 'admin@example.com',
+        firstName: 'John',
+        lastName: 'Smith',
+        password: hashedPassword,
+        isActive: true,
+        profileImageUrl: null,
+      });
+
+      console.log('Default admin user created:', adminUser.email);
+    } catch (error) {
+      console.error('Error creating default user:', error);
+    }
   }
 
   // Permission Management

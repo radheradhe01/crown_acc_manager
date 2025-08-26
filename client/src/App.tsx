@@ -1,9 +1,13 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
+import { useAuth } from "./hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
+import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Customers from "@/pages/customers";
 import Vendors from "@/pages/vendors";
@@ -23,7 +27,43 @@ import Categories from "@/pages/categories";
 import Analytics from "@/pages/analytics";
 import MainLayout from "@/components/layout/main-layout";
 
-function Router() {
+function AuthWrapper() {
+  const { user, setUser, isAuthenticated } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  // Check if user is authenticated on app start
+  const { data: currentUser } = useQuery({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+    enabled: !user && location !== "/login",
+  });
+
+  useEffect(() => {
+    if (currentUser && !user) {
+      setUser(currentUser);
+    }
+  }, [currentUser, user, setUser]);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated && location !== "/login") {
+      setLocation("/login");
+    } else if (isAuthenticated && location === "/login") {
+      setLocation("/");
+    }
+  }, [isAuthenticated, location, setLocation]);
+
+  return (
+    <Switch>
+      <Route path="/login" component={Login} />
+      <Route>
+        {isAuthenticated ? <AuthenticatedRoutes /> : <Login />}
+      </Route>
+    </Switch>
+  );
+}
+
+function AuthenticatedRoutes() {
   return (
     <MainLayout>
       <Switch>
@@ -54,8 +94,8 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <AuthWrapper />
         <Toaster />
-        <Router />
       </TooltipProvider>
     </QueryClientProvider>
   );

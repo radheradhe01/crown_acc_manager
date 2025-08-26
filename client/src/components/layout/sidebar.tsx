@@ -15,10 +15,24 @@ import {
   Building,
   CreditCard,
   Shield,
-  Tags
+  Tags,
+  LogOut,
+  ChevronUp
 } from "lucide-react";
 import { CompanySelector } from "../company-selector";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navigationItems = [
   { path: "/", label: "Dashboard", icon: ChartLine },
@@ -108,17 +122,81 @@ export function Sidebar() {
       </nav>
 
       {/* User Profile */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="flex items-center">
-          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-            <User className="h-4 w-4 text-white" />
-          </div>
-          <div className="ml-3">
-            <div className="text-sm font-medium">John Smith</div>
-            <div className="text-xs text-gray-500">Administrator</div>
-          </div>
-        </div>
-      </div>
+      <UserProfile />
     </aside>
+  );
+}
+
+function UserProfile() {
+  const { user, logout } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/auth/logout", {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      logout();
+      toast({
+        title: "Success",
+        description: "Logged out successfully",
+      });
+      setLocation("/login");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to logout",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleLogout = () => {
+    logoutMutation.mutate();
+  };
+
+  if (!user) {
+    return null;
+  }
+
+  const displayName = user.firstName && user.lastName 
+    ? `${user.firstName} ${user.lastName}` 
+    : user.email;
+
+  return (
+    <div className="p-4 border-t border-gray-200">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between p-2 h-auto">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                <User className="h-4 w-4 text-white" />
+              </div>
+              <div className="ml-3 text-left">
+                <div className="text-sm font-medium truncate max-w-[120px]">
+                  {displayName}
+                </div>
+                <div className="text-xs text-gray-500">Administrator</div>
+              </div>
+            </div>
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem
+            onClick={handleLogout}
+            disabled={logoutMutation.isPending}
+            className="text-red-600 focus:text-red-600"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            {logoutMutation.isPending ? "Logging out..." : "Logout"}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
