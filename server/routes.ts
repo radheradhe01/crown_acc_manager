@@ -152,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Email and reminder routes
-  app.post("/api/companies/:companyId/payment-reminders/send", requirePermission("customers", "write"), async (req, res) => {
+  app.post("/api/companies/:companyId/payment-reminders/send", requireAuth, async (req, res) => {
     try {
       const companyId = parseInt(req.params.companyId);
       const { customerIds, message } = req.body;
@@ -210,7 +210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/email/test-connection", requirePermission("settings", "write"), async (req, res) => {
+  app.post("/api/email/test-connection", requireAuth, async (req, res) => {
     try {
       const { emailService } = await import('./email-service');
       const isConnected = await emailService.testEmailConnection();
@@ -221,7 +221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/companies/:companyId/customers-with-balance", requirePermission("customers", "read"), async (req, res) => {
+  app.get("/api/companies/:companyId/customers-with-balance", requireAuth, async (req, res) => {
     try {
       const companyId = parseInt(req.params.companyId);
       const customers = await storage.getCustomers(companyId);
@@ -481,7 +481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bankAccount = await storage.createBankAccount(validatedData);
       console.log("Created bank account:", bankAccount);
       res.status(201).json(bankAccount);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating bank account:", error);
       console.error("Error details:", error.message);
       console.error("Request body that caused error:", req.body);
@@ -889,9 +889,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             payee: payee,
             transactionType: 'EXPENSE' as const,
             description: transaction.description,
-            amountBeforeTax: transaction.debitAmount !== '0.00' ? transaction.debitAmount : transaction.creditAmount,
+            amountBeforeTax: transaction.debitAmount !== '0.00' ? transaction.debitAmount || '0.00' : transaction.creditAmount || '0.00',
             salesTax: '0.00',
-            totalAmount: transaction.debitAmount !== '0.00' ? transaction.debitAmount : transaction.creditAmount,
+            totalAmount: transaction.debitAmount !== '0.00' ? transaction.debitAmount || '0.00' : transaction.creditAmount || '0.00',
             vendorId: categorization.vendorId || null,
             notes: categorization.notes || `Auto-created from bank transaction ID ${id}`
           };
