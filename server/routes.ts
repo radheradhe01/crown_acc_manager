@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 import { 
   insertCompanySchema, 
   insertCustomerSchema, 
@@ -384,7 +385,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Test the SMTP connection
-      const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransporter(smtpConfig);
 
       await transporter.verify();
