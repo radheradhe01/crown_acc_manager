@@ -165,13 +165,21 @@ export function RevenueUploadModal({
 
     try {
       const text = await file.text();
+      console.log('Raw CSV text:', text.substring(0, 500) + '...');
+      
       const parsedData = parseCsv(text);
+      console.log('Parsed CSV data:', parsedData);
+      console.log('Number of rows:', parsedData.length);
+      if (parsedData.length > 0) {
+        console.log('First row keys:', Object.keys(parsedData[0]));
+        console.log('First row values:', parsedData[0]);
+      }
       
       // Validate CSV structure (should have Date, Customer Name, Revenue, Cost columns)
       if (parsedData.length === 0) {
         toast({
           title: "Error",
-          description: "CSV file is empty",
+          description: "CSV file appears to be empty or has no valid data rows. Please check your file format.",
           variant: "destructive",
         });
         return;

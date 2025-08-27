@@ -1,24 +1,62 @@
 export function parseCsv(text: string): any[] {
-  const lines = text.trim().split('\n');
+  const lines = text.trim().split('\n').filter(line => line.trim().length > 0);
   if (lines.length === 0) return [];
 
-  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  // Use proper CSV parsing that handles quoted fields
+  const headers = parseCSVLine(lines[0]).map(h => h.trim());
   const data: any[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-    if (values.length === headers.length) {
+    const line = lines[i].trim();
+    if (!line) continue; // Skip empty lines
+    
+    const values = parseCSVLine(line);
+    if (values.length > 0) {
       const row: any = {};
       headers.forEach((header, index) => {
         // Normalize header names to match expected format
         const normalizedHeader = normalizeHeaderName(header);
-        row[normalizedHeader] = values[index];
+        row[normalizedHeader] = values[index] || '';
       });
       data.push(row);
     }
   }
 
   return data;
+}
+
+// Proper CSV line parser that handles quoted fields
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+    
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        current += '"';
+        i++; // Skip next quote
+      } else {
+        // Toggle quote state
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // Field separator
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  // Add final field
+  result.push(current.trim());
+  
+  return result;
 }
 
 // Alias for backward compatibility
