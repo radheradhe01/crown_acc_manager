@@ -113,7 +113,8 @@ class SchedulerService {
       const customers = await storage.getCustomers(companyId);
       
       for (const customer of customers) {
-        if (!customer.email) continue; // Skip customers without email
+        // Skip customers without email or reminders disabled
+        if (!customer.email || !customer.enablePaymentReminders) continue;
         
         // Calculate actual outstanding balance
         const customerSummary = await storage.getCustomerStatementSummary(companyId, customer.id);
@@ -124,12 +125,29 @@ class SchedulerService {
         // Calculate days overdue
         const daysOverdue = await this.calculateDaysOverdue(companyId, customer.id);
         
-        // Check if we should send a reminder today
-        const shouldSendReminder = this.shouldSendReminderToday(daysOverdue, settings);
+        // Use customer-specific reminder settings
+        const customerReminderDays = customer.reminderDays 
+          ? customer.reminderDays.split(',').map(d => parseInt(d.trim()))
+          : settings.reminderTimes;
+        
+        const customerFrequency = customer.reminderFrequency || settings.recurringAfter;
+        
+        // Check if we should send a reminder today using customer-specific settings
+        const shouldSendReminder = this.shouldSendReminderTodayForCustomer(
+          daysOverdue, 
+          customerReminderDays, 
+          customerFrequency,
+          customer.lastReminderSent
+        );
         
         if (shouldSendReminder) {
           console.log(`Sending automated payment reminder to ${customer.email} (${daysOverdue} days overdue, $${totalDue} due)`);
           await this.sendPaymentReminder(companyId, customer.id);
+          
+          // Update last reminder sent timestamp
+          await storage.updateCustomer(customer.id, {
+            lastReminderSent: new Date()
+          });
         }
       }
     } catch (error) {
@@ -181,6 +199,32 @@ class SchedulerService {
     // Check for recurring reminders after the specified period
     if (daysOverdue > settings.recurringAfter && 
         daysOverdue % settings.recurringAfter === 0) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  private shouldSendReminderTodayForCustomer(
+    daysOverdue: number, 
+    reminderDays: number[], 
+    frequencyDays: number,
+    lastReminderSent?: Date | null
+  ): boolean {
+    // Check if today matches any of the customer's reminder days
+    if (reminderDays.includes(daysOverdue)) {
+      return true;
+    }
+    
+    // Check for recurring reminders based on customer frequency
+    if (daysOverdue > frequencyDays && daysOverdue % frequencyDays === 0) {
+      // If we have a last reminder date, ensure we don't send too frequently
+      if (lastReminderSent) {
+        const daysSinceLastReminder = Math.floor(
+          (new Date().getTime() - new Date(lastReminderSent).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        return daysSinceLastReminder >= frequencyDays;
+      }
       return true;
     }
     

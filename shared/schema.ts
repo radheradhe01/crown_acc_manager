@@ -82,6 +82,11 @@ export const customers = pgTable("customers", {
   paymentTerms: text("payment_terms").notNull().default("Net 30"),
   openingBalance: decimal("opening_balance", { precision: 10, scale: 2 }).default("0.00"),
   openingBalanceDate: date("opening_balance_date"),
+  // Payment reminder settings per customer
+  enablePaymentReminders: boolean("enable_payment_reminders").default(true),
+  reminderDays: text("reminder_days").default("0,7,15,30"), // Comma-separated days
+  lastReminderSent: timestamp("last_reminder_sent"),
+  reminderFrequency: integer("reminder_frequency").default(30), // Days between recurring reminders
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

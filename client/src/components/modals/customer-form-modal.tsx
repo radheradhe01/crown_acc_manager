@@ -64,6 +64,9 @@ export function CustomerFormModal({ isOpen, onClose, customer }: CustomerFormMod
         paymentTerms: customer.paymentTerms || "Net 30",
         openingBalance: customer.openingBalance || "0.00",
         openingBalanceDate: customer.openingBalanceDate || "",
+        enablePaymentReminders: customer.enablePaymentReminders ?? true,
+        reminderDays: customer.reminderDays || "0,7,15,30",
+        reminderFrequency: customer.reminderFrequency || 30,
       });
     } else {
       // Reset to default values for new customer
@@ -78,6 +81,9 @@ export function CustomerFormModal({ isOpen, onClose, customer }: CustomerFormMod
         paymentTerms: "Net 30",
         openingBalance: "0.00",
         openingBalanceDate: "",
+        enablePaymentReminders: true,
+        reminderDays: "0,7,15,30",
+        reminderFrequency: 30,
       });
     }
   }, [customer, currentCompany?.id, form]);
@@ -239,6 +245,47 @@ export function CustomerFormModal({ isOpen, onClose, customer }: CustomerFormMod
                 type="date"
                 {...form.register("openingBalanceDate")}
               />
+            </div>
+          </div>
+
+          {/* Payment Reminder Settings */}
+          <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+            <Label className="font-medium">Payment Reminder Settings</Label>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableReminders"
+                {...form.register("enablePaymentReminders")}
+              />
+              <Label htmlFor="enableReminders" className="text-sm">
+                Enable automatic payment reminders for this customer
+              </Label>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="reminderDays" className="text-sm">Reminder Days</Label>
+                <Input
+                  id="reminderDays"
+                  {...form.register("reminderDays")}
+                  placeholder="0,7,15,30"
+                  className="mt-1"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  Days after due date (comma-separated)
+                </p>
+              </div>
+              
+              <div>
+                <Label htmlFor="reminderFrequency" className="text-sm">Recurring Frequency (days)</Label>
+                <Input
+                  id="reminderFrequency"
+                  type="number"
+                  {...form.register("reminderFrequency", { valueAsNumber: true })}
+                  placeholder="30"
+                  className="mt-1"
+                />
+              </div>
             </div>
           </div>
 

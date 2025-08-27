@@ -270,7 +270,7 @@ export default function PaymentReminders() {
                       }
                     />
                     
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4">
                       <div>
                         <Label className="font-medium">{customer.name}</Label>
                         <div className="flex items-center gap-2">
@@ -310,6 +310,28 @@ export default function PaymentReminders() {
                             ? `${customer.invoiceCount} invoice(s)` 
                             : "Opening balance"}
                         </p>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm text-gray-500">Reminders</Label>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="text-xs">
+                            Auto: On
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-6 px-2"
+                            onClick={() => {
+                              toast({
+                                title: "Customer Settings",
+                                description: "Edit customer to change reminder settings",
+                              });
+                            }}
+                          >
+                            Settings
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
