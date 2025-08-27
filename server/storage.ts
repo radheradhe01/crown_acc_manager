@@ -2467,41 +2467,24 @@ export class DatabaseStorage implements IStorage {
 
   async getOutstandingReceivables(companyId: number): Promise<number> {
     try {
-      // Get customer balances from outstanding balances tab data
-      const customerBalances = await db
-        .select({
-          customerId: customers.id,
-          openingBalance: customers.openingBalance,
-          totalRevenue: sql<number>`
-            COALESCE(
-              (SELECT SUM(CAST(revenue AS NUMERIC))
-               FROM ${customerStatementLines}
-               WHERE customer_id = ${customers.id}
-                 AND line_type = 'REVENUE'
-              ), 0
-            )
-          `,
-          totalCredits: sql<number>`
-            COALESCE(
-              (SELECT SUM(CAST(credit_amount AS NUMERIC))
-               FROM ${customerStatementLines}
-               WHERE customer_id = ${customers.id}
-                 AND line_type = 'BANK_TRANSACTION'
-              ), 0
-            )
-          `
-        })
+      // Use the exact same calculation as the Outstanding Balances report
+      const allCustomers = await db
+        .select()
         .from(customers)
         .where(eq(customers.companyId, companyId));
 
-      // Calculate total outstanding from customer balances (same as outstanding balances tab)
-      const totalOutstanding = customerBalances.reduce((total, customer) => {
-        const openingBalance = Number(customer.openingBalance || 0);
-        const totalRevenue = Number(customer.totalRevenue || 0);
-        const totalCredits = Number(customer.totalCredits || 0);
-        const customerBalance = openingBalance + totalRevenue - totalCredits;
-        return total + Math.max(0, customerBalance); // Only positive balances
-      }, 0);
+      let totalOutstanding = 0;
+
+      for (const customer of allCustomers) {
+        // Calculate actual outstanding balance using customer statement summary (same as report)
+        const customerSummary = await this.getCustomerStatementSummary(companyId, customer.id);
+        const balanceDue = customerSummary.closingBalance;
+        
+        // Only include customers with outstanding balances (same condition as report)
+        if (balanceDue > 0) {
+          totalOutstanding += balanceDue;
+        }
+      }
 
       return totalOutstanding;
     } catch (error) {
