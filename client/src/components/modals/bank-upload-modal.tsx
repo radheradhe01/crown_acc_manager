@@ -245,6 +245,22 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
                 </p>
               )}
             </div>
+            
+            {/* Sample CSV Format */}
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">Sample CSV Format:</h4>
+              <div className="text-xs text-gray-600 font-mono bg-white p-3 rounded border">
+                <div>Date,Description,Amount</div>
+                <div>2024-01-15,"Payment from ABC Corp",1500.00</div>
+                <div>2024-01-16,"Office Supplies",-250.75</div>
+                <div>2024-01-17,"Bank Transfer",2000.00</div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                <strong>Required columns:</strong> Date, Description, Amount<br/>
+                <strong>Alternative format:</strong> Date, Description, Debit, Credit<br/>
+                <strong>Date formats:</strong> YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY
+              </p>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3">
