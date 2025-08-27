@@ -178,8 +178,8 @@ export function RevenueUploadModal({
       // Validate CSV structure (should have Date, Customer Name, Revenue, Cost columns)
       if (parsedData.length === 0) {
         toast({
-          title: "Error",
-          description: "CSV file appears to be empty or has no valid data rows. Please check your file format.",
+          title: "Error", 
+          description: "CSV file appears to be empty or has parsing issues. Please check the console for details and ensure your CSV has proper formatting.",
           variant: "destructive",
         });
         return;

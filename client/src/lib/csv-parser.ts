@@ -1,16 +1,26 @@
 export function parseCsv(text: string): any[] {
-  const lines = text.trim().split('\n').filter(line => line.trim().length > 0);
+  // Handle different line endings and clean up the text
+  const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const lines = cleanText.split('\n').filter(line => line.trim().length > 0);
+  
+  console.log('Clean text lines:', lines);
+  
   if (lines.length === 0) return [];
 
   // Use proper CSV parsing that handles quoted fields
   const headers = parseCSVLine(lines[0]).map(h => h.trim());
+  console.log('Parsed headers:', headers);
+  
   const data: any[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue; // Skip empty lines
     
+    console.log(`Parsing line ${i}:`, line);
     const values = parseCSVLine(line);
+    console.log(`Parsed values for line ${i}:`, values);
+    
     if (values.length > 0) {
       const row: any = {};
       headers.forEach((header, index) => {
@@ -18,6 +28,7 @@ export function parseCsv(text: string): any[] {
         const normalizedHeader = normalizeHeaderName(header);
         row[normalizedHeader] = values[index] || '';
       });
+      console.log(`Created row ${i}:`, row);
       data.push(row);
     }
   }
