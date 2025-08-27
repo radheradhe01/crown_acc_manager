@@ -234,30 +234,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const customer of customers) {
         if (!customer.email) continue; // Skip customers without email
         
+        // Check for outstanding invoices
         const customerInvoices = invoices.filter(inv => 
           inv.customerId === customer.id && 
           inv.status === 'sent' &&
           parseFloat(inv.amount) > parseFloat(inv.paidAmount || '0')
         );
         
+        let totalDue = 0;
+        let daysOverdue = 0;
+        let invoiceCount = 0;
+        let oldestDueDate = null;
+        
+        // Calculate invoice balance
         if (customerInvoices.length > 0) {
-          const totalDue = customerInvoices.reduce((sum, inv) => 
+          totalDue = customerInvoices.reduce((sum, inv) => 
             sum + (parseFloat(inv.amount) - parseFloat(inv.paidAmount || '0')), 0
           );
+          
           const oldestInvoice = customerInvoices.sort((a, b) => 
             new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
           )[0];
           
           const today = new Date();
           const dueDate = new Date(oldestInvoice.dueDate);
-          const daysOverdue = Math.max(0, Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+          daysOverdue = Math.max(0, Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+          invoiceCount = customerInvoices.length;
+          oldestDueDate = oldestInvoice.dueDate;
+        }
+        
+        // Add opening balance if exists
+        const openingBalance = parseFloat(customer.openingBalance || '0');
+        if (openingBalance > 0) {
+          totalDue += openingBalance;
           
+          // If no invoices but has opening balance, calculate days since opening balance date
+          if (customerInvoices.length === 0 && customer.openingBalanceDate) {
+            const today = new Date();
+            const openingDate = new Date(customer.openingBalanceDate);
+            daysOverdue = Math.max(0, Math.ceil((today.getTime() - openingDate.getTime()) / (1000 * 60 * 60 * 24)));
+            oldestDueDate = customer.openingBalanceDate;
+          }
+        }
+        
+        // Include customer if they have any balance due
+        if (totalDue > 0) {
           customersWithBalance.push({
             ...customer,
             balanceDue: totalDue,
             daysOverdue,
-            invoiceCount: customerInvoices.length,
-            oldestDueDate: oldestInvoice.dueDate
+            invoiceCount: invoiceCount + (openingBalance > 0 ? 1 : 0), // Include opening balance as "invoice"
+            oldestDueDate: oldestDueDate || new Date().toISOString().split('T')[0]
           });
         }
       }

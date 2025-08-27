@@ -30,7 +30,7 @@ export default function PaymentReminders() {
   const [emailConfigured, setEmailConfigured] = useState(false);
 
   const { data: customersWithBalance = [], isLoading } = useQuery<CustomerWithBalance[]>({
-    queryKey: ["/api/companies", currentCompany?.id, "customers-with-balance"],
+    queryKey: [`/api/companies/${currentCompany?.id}/customers-with-balance`],
     enabled: !!currentCompany?.id,
   });
 
@@ -73,7 +73,7 @@ export default function PaymentReminders() {
       });
       setSelectedCustomers([]);
       queryClient.invalidateQueries({ 
-        queryKey: ["/api/companies", currentCompany?.id, "customers-with-balance"] 
+        queryKey: [`/api/companies/${currentCompany?.id}/customers-with-balance`] 
       });
     },
     onError: (error: any) => {
