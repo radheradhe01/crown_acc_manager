@@ -827,8 +827,37 @@ export class DatabaseStorage implements IStorage {
       for (const row of sortedData) {
         console.log(`Processing row:`, row);
         
-        // Parse the row data
-        const transactionDate = new Date(row.date).toISOString().split('T')[0];
+        // Parse the row data - handle different date formats
+        let transactionDate: string;
+        try {
+          // Handle date formats like MM/DD/YY, MM/DD/YYYY, YYYY-MM-DD
+          const dateStr = row.date.toString();
+          let parsedDate: Date;
+          
+          if (dateStr.includes('/')) {
+            // Handle MM/DD/YY or MM/DD/YYYY format
+            const [month, day, year] = dateStr.split('/');
+            let fullYear = year;
+            if (year.length === 2) {
+              // Convert YY to YYYY (assume 20XX for years 00-30, 19XX for 31-99)
+              const yearNum = parseInt(year);
+              fullYear = yearNum <= 30 ? `20${year}` : `19${year}`;
+            }
+            parsedDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+          } else {
+            parsedDate = new Date(dateStr);
+          }
+          
+          if (isNaN(parsedDate.getTime())) {
+            throw new Error(`Invalid date: ${dateStr}`);
+          }
+          
+          transactionDate = parsedDate.toISOString().split('T')[0];
+        } catch (error) {
+          console.error(`Error parsing date "${row.date}":`, error);
+          transactionDate = new Date().toISOString().split('T')[0]; // Fallback to today
+        }
+        
         const description = row.description || '';
         
         // Handle different amount field formats
@@ -840,12 +869,21 @@ export class DatabaseStorage implements IStorage {
           debitAmount = parseFloat(row.debit.toString()) || 0;
           creditAmount = parseFloat(row.credit.toString()) || 0;
         } else if (row.amount) {
-          // Single amount column - determine if it's debit or credit based on sign
+          // Single amount column - determine if it's debit or credit based on Type or sign
           const amount = parseFloat(row.amount.toString()) || 0;
-          if (amount > 0) {
-            creditAmount = amount;
-          } else {
+          const type = (row.type || '').toLowerCase();
+          
+          if (type === 'credit' || (type === '' && amount > 0)) {
+            creditAmount = Math.abs(amount);
+          } else if (type === 'debit' || (type === '' && amount < 0)) {
             debitAmount = Math.abs(amount);
+          } else {
+            // Fallback: positive amounts are credits, negative are debits
+            if (amount >= 0) {
+              creditAmount = amount;
+            } else {
+              debitAmount = Math.abs(amount);
+            }
           }
         } else {
           // Try to find any numeric value

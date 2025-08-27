@@ -72,22 +72,21 @@ export function BankUploadModal({ isOpen, onClose }: BankUploadModalProps) {
           reader.readAsText(selectedFile);
         });
         
-        // Extract headers from the first line
-        const lines = fileContent.trim().split('\n');
-        if (lines.length === 0) {
-          throw new Error("CSV file is empty");
+        // Parse CSV using the enhanced parser that handles tab/comma separation
+        const transactions = parseBankStatementCSV(fileContent);
+        
+        if (transactions.length === 0) {
+          throw new Error("CSV file is empty or could not be parsed");
         }
         
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        // Extract headers from parsed data
+        const headers = Object.keys(transactions[0] || {});
         
         // Validate CSV headers
         const validation = validateCSVHeaders(headers);
         if (!validation.isValid) {
           throw new Error("Invalid CSV format. Required columns: date, description, amount. " + validation.errors.join(', '));
         }
-
-        // Parse CSV
-        const transactions = parseBankStatementCSV(fileContent);
         
         // Create bank statement upload record with CSV data
         const uploadData = {
