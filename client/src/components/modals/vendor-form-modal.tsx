@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -35,23 +36,56 @@ export function VendorFormModal({ isOpen, onClose, vendor }: VendorFormModalProp
     resolver: zodResolver(formSchema),
     defaultValues: {
       companyId: currentCompany?.id || 0,
-      name: vendor?.name || "",
-      contactPerson: vendor?.contactPerson || "",
-      email: vendor?.email || "",
-      phone: vendor?.phone || "",
-      billingAddress: vendor?.billingAddress || "",
-      defaultPaymentMethod: vendor?.defaultPaymentMethod || "Bank Transfer",
-      openingBalance: vendor?.openingBalance || "0.00",
-      openingBalanceDate: vendor?.openingBalanceDate || "",
+      name: "",
+      contactPerson: "",
+      email: "",
+      phone: "",
+      billingAddress: "",
+      defaultPaymentMethod: "Bank Transfer",
+      openingBalance: "0.00",
+      openingBalanceDate: "",
     },
   });
+
+  // Reset form when vendor changes (for editing existing vendors)
+  useEffect(() => {
+    if (vendor) {
+      form.reset({
+        companyId: currentCompany?.id || 0,
+        name: vendor.name || "",
+        contactPerson: vendor.contactPerson || "",
+        email: vendor.email || "",
+        phone: vendor.phone || "",
+        billingAddress: vendor.billingAddress || "",
+        defaultPaymentMethod: vendor.defaultPaymentMethod || "Bank Transfer",
+        openingBalance: vendor.openingBalance || "0.00",
+        openingBalanceDate: vendor.openingBalanceDate || "",
+      });
+    } else {
+      // Reset to default values for new vendor
+      form.reset({
+        companyId: currentCompany?.id || 0,
+        name: "",
+        contactPerson: "",
+        email: "",
+        phone: "",
+        billingAddress: "",
+        defaultPaymentMethod: "Bank Transfer",
+        openingBalance: "0.00",
+        openingBalanceDate: "",
+      });
+    }
+  }, [vendor, currentCompany?.id, form]);
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       const url = vendor ? `/api/vendors/${vendor.id}` : "/api/vendors";
       const method = vendor ? "PUT" : "POST";
-      const response = await apiRequest(method, url, data);
-      return response.json();
+      const response = await apiRequest(url, {
+        method,
+        body: data,
+      });
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/vendors`] });
@@ -76,7 +110,7 @@ export function VendorFormModal({ isOpen, onClose, vendor }: VendorFormModalProp
     const cleanedData = {
       ...data,
       companyId: currentCompany?.id || 0,
-      openingBalanceDate: data.openingBalanceDate?.trim() || null,
+      openingBalanceDate: data.openingBalanceDate?.trim() || undefined,
     };
     mutation.mutate(cleanedData);
   };

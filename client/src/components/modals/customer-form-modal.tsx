@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -38,24 +38,59 @@ export function CustomerFormModal({ isOpen, onClose, customer }: CustomerFormMod
     resolver: zodResolver(formSchema),
     defaultValues: {
       companyId: currentCompany?.id || 0,
-      name: customer?.name || "",
-      contactPerson: customer?.contactPerson || "",
-      email: customer?.email || "",
-      phone: customer?.phone || "",
-      billingAddress: customer?.billingAddress || "",
-      shippingAddress: customer?.shippingAddress || "",
-      paymentTerms: customer?.paymentTerms || "Net 30",
-      openingBalance: customer?.openingBalance || "0.00",
-      openingBalanceDate: customer?.openingBalanceDate || "",
+      name: "",
+      contactPerson: "",
+      email: "",
+      phone: "",
+      billingAddress: "",
+      shippingAddress: "",
+      paymentTerms: "Net 30",
+      openingBalance: "0.00",
+      openingBalanceDate: "",
     },
   });
+
+  // Reset form when customer changes (for editing existing customers)
+  useEffect(() => {
+    if (customer) {
+      form.reset({
+        companyId: currentCompany?.id || 0,
+        name: customer.name || "",
+        contactPerson: customer.contactPerson || "",
+        email: customer.email || "",
+        phone: customer.phone || "",
+        billingAddress: customer.billingAddress || "",
+        shippingAddress: customer.shippingAddress || "",
+        paymentTerms: customer.paymentTerms || "Net 30",
+        openingBalance: customer.openingBalance || "0.00",
+        openingBalanceDate: customer.openingBalanceDate || "",
+      });
+    } else {
+      // Reset to default values for new customer
+      form.reset({
+        companyId: currentCompany?.id || 0,
+        name: "",
+        contactPerson: "",
+        email: "",
+        phone: "",
+        billingAddress: "",
+        shippingAddress: "",
+        paymentTerms: "Net 30",
+        openingBalance: "0.00",
+        openingBalanceDate: "",
+      });
+    }
+  }, [customer, currentCompany?.id, form]);
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       const url = customer ? `/api/customers/${customer.id}` : "/api/customers";
       const method = customer ? "PUT" : "POST";
-      const response = await apiRequest(method, url, data);
-      return response.json();
+      const response = await apiRequest(url, {
+        method,
+        body: data,
+      });
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}/customers`] });
@@ -80,7 +115,7 @@ export function CustomerFormModal({ isOpen, onClose, customer }: CustomerFormMod
     const cleanedData = {
       ...data,
       companyId: currentCompany?.id || 0,
-      openingBalanceDate: data.openingBalanceDate?.trim() || null,
+      openingBalanceDate: data.openingBalanceDate?.trim() || undefined,
     };
     mutation.mutate(cleanedData);
   };
