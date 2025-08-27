@@ -1037,13 +1037,80 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Recent transactions
-  async getRecentTransactions(companyId: number, limit: number = 10): Promise<Transaction[]> {
-    return await db
-      .select()
-      .from(transactions)
-      .where(eq(transactions.companyId, companyId))
-      .orderBy(desc(transactions.transactionDate))
-      .limit(limit);
+  async getRecentTransactions(companyId: number, limit: number = 10): Promise<any[]> {
+    try {
+      const transactions: any[] = [];
+
+      // Get expense transactions with simple select
+      const expenseData = await db
+        .select()
+        .from(expenseTransactions)
+        .where(eq(expenseTransactions.companyId, companyId))
+        .orderBy(desc(expenseTransactions.transactionDate))
+        .limit(5);
+
+      for (const expense of expenseData) {
+        let vendorName = null;
+        let categoryName = null;
+
+        if (expense.vendorId) {
+          const vendor = await this.getVendor(expense.vendorId);
+          vendorName = vendor?.name || null;
+        }
+
+        if (expense.expenseCategoryId) {
+          const category = await this.getExpenseCategory(expense.expenseCategoryId);
+          categoryName = category?.name || null;
+        }
+
+        transactions.push({
+          id: `expense-${expense.id}`,
+          type: 'expense',
+          description: expense.description || expense.payee,
+          totalAmount: parseFloat(expense.totalAmount),
+          transactionDate: expense.transactionDate,
+          vendorName,
+          categoryName
+        });
+      }
+
+      // Get revenue transactions from customer statement lines
+      const revenueData = await db
+        .select()
+        .from(customerStatementLines)
+        .innerJoin(customers, eq(customerStatementLines.customerId, customers.id))
+        .where(and(
+          eq(customers.companyId, companyId),
+          eq(customerStatementLines.lineType, 'REVENUE')
+        ))
+        .orderBy(desc(customerStatementLines.lineDate))
+        .limit(5);
+
+      for (const revenueRow of revenueData) {
+        const revenue = revenueRow.customer_statement_lines;
+        const customer = revenueRow.customers;
+        
+        transactions.push({
+          id: `revenue-${revenue.id}`,
+          type: 'revenue',
+          description: revenue.description || 'Revenue Transaction',
+          totalAmount: parseFloat(revenue.revenue),
+          transactionDate: revenue.lineDate,
+          vendorName: customer.name,
+          categoryName: 'Revenue'
+        });
+      }
+
+      // Sort by transaction date (newest first) and limit results
+      const sortedTransactions = transactions
+        .sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime())
+        .slice(0, limit);
+
+      return sortedTransactions;
+    } catch (error) {
+      console.error('Error in getRecentTransactions:', error);
+      return [];
+    }
   }
 
   // General Ledger Report
