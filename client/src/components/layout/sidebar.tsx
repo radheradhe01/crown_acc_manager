@@ -39,7 +39,6 @@ import {
 
 const navigationItems = [
   { path: "/", label: "Dashboard", icon: ChartLine },
-  { path: "/analytics", label: "Analytics", icon: TrendingUp },
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/vendors", label: "Vendors", icon: Truck },
   { path: "/bank-accounts", label: "Bank Accounts", icon: CreditCard },
