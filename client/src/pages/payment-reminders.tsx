@@ -21,6 +21,7 @@ interface CustomerWithBalance {
   daysOverdue: number;
   invoiceCount: number;
   oldestDueDate: string;
+  hasEmail?: boolean;
 }
 
 export default function PaymentReminders() {
@@ -218,7 +219,7 @@ export default function PaymentReminders() {
             )}
           </CardTitle>
           <CardDescription>
-            Select customers to send payment reminders to
+            All customers with outstanding balances (including opening balances and receivables)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -259,11 +260,22 @@ export default function PaymentReminders() {
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div>
                         <Label className="font-medium">{customer.name}</Label>
-                        <p className="text-sm text-gray-500">{customer.email}</p>
+                        <div className="flex items-center gap-2">
+                          {customer.email ? (
+                            <p className="text-sm text-gray-500">{customer.email}</p>
+                          ) : (
+                            <p className="text-sm text-red-500">No email address</p>
+                          )}
+                          {!customer.hasEmail && (
+                            <Badge variant="destructive" className="text-xs">
+                              Cannot email
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       
                       <div>
-                        <Label className="text-sm text-gray-500">Balance Due</Label>
+                        <Label className="text-sm text-gray-500">Outstanding Balance</Label>
                         <p className="font-medium text-red-600">
                           {formatCurrency(customer.balanceDue)}
                         </p>
@@ -279,8 +291,12 @@ export default function PaymentReminders() {
                       </div>
                       
                       <div>
-                        <Label className="text-sm text-gray-500">Invoices</Label>
-                        <p className="text-sm">{customer.invoiceCount} invoice(s)</p>
+                        <Label className="text-sm text-gray-500">Details</Label>
+                        <p className="text-sm">
+                          {customer.invoiceCount > 0 
+                            ? `${customer.invoiceCount} invoice(s)` 
+                            : "Opening balance"}
+                        </p>
                       </div>
                     </div>
                   </div>

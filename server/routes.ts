@@ -273,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const results = [];
         for (const customerId of customerIds) {
           const customer = await storage.getCustomer(customerId);
-          if (customer && customer.companyId === companyId) {
+          if (customer && customer.companyId === companyId && customer.email) {
             // Calculate actual outstanding balance using customer statement summary
             const customerSummary = await storage.getCustomerStatementSummary(companyId, customerId);
             const totalDue = customerSummary.closingBalance;
@@ -348,8 +348,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const customersWithBalance = [];
       
       for (const customer of customers) {
-        if (!customer.email) continue; // Skip customers without email
-        
         // Calculate actual outstanding balance using customer statement summary
         const customerSummary = await storage.getCustomerStatementSummary(companyId, customer.id);
         const totalDue = customerSummary.closingBalance;
@@ -365,9 +363,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           let daysOverdue = 0;
           let invoiceCount = customerInvoices.length;
-          let oldestDueDate = null;
+          let oldestDueDate = new Date().toISOString().split('T')[0];
           
-          // Calculate days overdue based on oldest unpaid invoice
+          // Calculate days overdue based on oldest unpaid invoice OR opening balance date
           if (customerInvoices.length > 0) {
             const oldestInvoice = customerInvoices.sort((a, b) => 
               new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
@@ -377,6 +375,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const dueDate = new Date(oldestInvoice.dueDate);
             daysOverdue = Math.max(0, Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
             oldestDueDate = oldestInvoice.dueDate;
+          } else if (customer.openingBalanceDate) {
+            // If no invoices but has opening balance, use opening balance date for overdue calculation
+            const today = new Date();
+            const openingDate = new Date(customer.openingBalanceDate);
+            daysOverdue = Math.max(0, Math.ceil((today.getTime() - openingDate.getTime()) / (1000 * 60 * 60 * 24)));
+            oldestDueDate = customer.openingBalanceDate;
+          } else {
+            // Default to 30 days overdue if we have a balance but no specific date
+            daysOverdue = 30;
           }
           
           customersWithBalance.push({
@@ -384,7 +391,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             balanceDue: totalDue,
             daysOverdue,
             invoiceCount,
-            oldestDueDate: oldestDueDate || new Date().toISOString().split('T')[0]
+            oldestDueDate,
+            hasEmail: !!customer.email // Flag to show if customer has email for sending reminders
           });
         }
       }
