@@ -68,7 +68,7 @@ import {
   type UpsertUser,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, desc, asc, sum, gte, lte, sql } from "drizzle-orm";
+import { eq, and, or, desc, asc, sum, gte, lte, gt, lt, sql, like, count, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 export interface IStorage {
@@ -2403,19 +2403,7 @@ export class DatabaseStorage implements IStorage {
   // Dashboard helper methods
   async getTotalRevenue(companyId: number, startDate: string, endDate: string): Promise<number> {
     try {
-      // Get revenue from invoices
-      const invoiceRevenue = await db
-        .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(${invoices.amount} AS NUMERIC)), 0)` 
-        })
-        .from(invoices)
-        .where(and(
-          eq(invoices.companyId, companyId),
-          gte(invoices.invoiceDate, startDate),
-          lte(invoices.invoiceDate, endDate)
-        ));
-
-      // Get revenue from customer statement lines
+      // Get revenue from uploaded revenue sheets (customer statement lines)
       const statementRevenue = await db
         .select({ 
           total: sql<number>`COALESCE(SUM(CAST(${customerStatementLines.revenue} AS NUMERIC)), 0)` 
@@ -2429,26 +2417,7 @@ export class DatabaseStorage implements IStorage {
           lte(customerStatementLines.lineDate, endDate)
         ));
 
-      // Get positive bank transactions as potential revenue
-      const bankRevenue = await db
-        .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(${bankStatementTransactions.amount} AS NUMERIC)), 0)` 
-        })
-        .from(bankStatementTransactions)
-        .innerJoin(bankStatementUploads, eq(bankStatementTransactions.uploadId, bankStatementUploads.id))
-        .where(and(
-          eq(bankStatementUploads.companyId, companyId),
-          gt(bankStatementTransactions.amount, 0),
-          gte(bankStatementTransactions.transactionDate, startDate),
-          lte(bankStatementTransactions.transactionDate, endDate)
-        ));
-
-      const totalInvoiceRevenue = Number(invoiceRevenue[0]?.total || 0);
-      const totalStatementRevenue = Number(statementRevenue[0]?.total || 0);
-      const totalBankRevenue = Number(bankRevenue[0]?.total || 0);
-
-      // Return the highest value to avoid double counting
-      return Math.max(totalInvoiceRevenue, totalStatementRevenue, totalBankRevenue);
+      return Number(statementRevenue[0]?.total || 0);
     } catch (error) {
       console.error('Error in getTotalRevenue:', error);
       return 0;
@@ -2457,7 +2426,7 @@ export class DatabaseStorage implements IStorage {
 
   async getTotalExpenses(companyId: number, startDate: string, endDate: string): Promise<number> {
     try {
-      // Get expenses from expense transactions
+      // Get expenses from expense transactions module
       const expenseTransactionTotal = await db
         .select({ 
           total: sql<number>`COALESCE(SUM(CAST(${expenseTransactions.totalAmount} AS NUMERIC)), 0)` 
@@ -2469,38 +2438,7 @@ export class DatabaseStorage implements IStorage {
           lte(expenseTransactions.transactionDate, endDate)
         ));
 
-      // Get expenses from bills
-      const billsTotal = await db
-        .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(${bills.amount} AS NUMERIC)), 0)` 
-        })
-        .from(bills)
-        .where(and(
-          eq(bills.companyId, companyId),
-          gte(bills.billDate, startDate),
-          lte(bills.billDate, endDate)
-        ));
-
-      // Get negative bank transactions as expenses
-      const bankExpenses = await db
-        .select({ 
-          total: sql<number>`COALESCE(SUM(ABS(CAST(${bankStatementTransactions.amount} AS NUMERIC))), 0)` 
-        })
-        .from(bankStatementTransactions)
-        .innerJoin(bankStatementUploads, eq(bankStatementTransactions.uploadId, bankStatementUploads.id))
-        .where(and(
-          eq(bankStatementUploads.companyId, companyId),
-          lt(bankStatementTransactions.amount, 0),
-          gte(bankStatementTransactions.transactionDate, startDate),
-          lte(bankStatementTransactions.transactionDate, endDate)
-        ));
-
-      const totalExpenseTransactions = Number(expenseTransactionTotal[0]?.total || 0);
-      const totalBills = Number(billsTotal[0]?.total || 0);
-      const totalBankExpenses = Number(bankExpenses[0]?.total || 0);
-
-      // Sum all expense sources
-      return totalExpenseTransactions + totalBills + totalBankExpenses;
+      return Number(expenseTransactionTotal[0]?.total || 0);
     } catch (error) {
       console.error('Error in getTotalExpenses:', error);
       return 0;
@@ -2509,18 +2447,7 @@ export class DatabaseStorage implements IStorage {
 
   async getOutstandingReceivables(companyId: number): Promise<number> {
     try {
-      // Get outstanding invoices
-      const outstandingInvoices = await db
-        .select({ 
-          total: sql<number>`COALESCE(SUM(CAST(${invoices.amount} AS NUMERIC)), 0)` 
-        })
-        .from(invoices)
-        .where(and(
-          eq(invoices.companyId, companyId),
-          eq(invoices.status, 'SENT')
-        ));
-
-      // Get customer balances from customer statement summaries
+      // Get customer balances from outstanding balances tab data
       const customerBalances = await db
         .select({
           customerId: customers.id,
@@ -2547,8 +2474,8 @@ export class DatabaseStorage implements IStorage {
         .from(customers)
         .where(eq(customers.companyId, companyId));
 
-      // Calculate total outstanding from customer balances
-      const totalOutstandingFromCustomers = customerBalances.reduce((total, customer) => {
+      // Calculate total outstanding from customer balances (same as outstanding balances tab)
+      const totalOutstanding = customerBalances.reduce((total, customer) => {
         const openingBalance = Number(customer.openingBalance || 0);
         const totalRevenue = Number(customer.totalRevenue || 0);
         const totalCredits = Number(customer.totalCredits || 0);
@@ -2556,10 +2483,7 @@ export class DatabaseStorage implements IStorage {
         return total + Math.max(0, customerBalance); // Only positive balances
       }, 0);
 
-      const outstandingInvoicesTotal = Number(outstandingInvoices[0]?.total || 0);
-
-      // Return the higher value to get the most accurate outstanding balance
-      return Math.max(outstandingInvoicesTotal, totalOutstandingFromCustomers);
+      return totalOutstanding;
     } catch (error) {
       console.error('Error in getOutstandingReceivables:', error);
       return 0;
@@ -2569,7 +2493,7 @@ export class DatabaseStorage implements IStorage {
   async getRecentTransactions(companyId: number, limit: number = 10): Promise<any[]> {
     try {
       // Get expense transactions
-      const expenseQuery = db
+      const expenseTransactionResults = await db
         .select({
           id: sql<string>`CONCAT('exp_', ${expenseTransactions.id})`,
           transactionDate: expenseTransactions.transactionDate,
@@ -2583,26 +2507,12 @@ export class DatabaseStorage implements IStorage {
         .from(expenseTransactions)
         .leftJoin(expenseCategories, eq(expenseTransactions.expenseCategoryId, expenseCategories.id))
         .leftJoin(vendors, eq(expenseTransactions.vendorId, vendors.id))
-        .where(eq(expenseTransactions.companyId, companyId));
-
-      // Get revenue transactions from invoices
-      const revenueQuery = db
-        .select({
-          id: sql<string>`CONCAT('inv_', ${invoices.id})`,
-          transactionDate: invoices.invoiceDate,
-          description: sql<string>`CONCAT('Invoice #', ${invoices.invoiceNumber})`,
-          totalAmount: invoices.amount,
-          categoryName: sql<string>`'Revenue'`,
-          vendorName: sql<string>`NULL`,
-          customerName: customers.name,
-          type: sql<string>`'revenue'`,
-        })
-        .from(invoices)
-        .leftJoin(customers, eq(invoices.customerId, customers.id))
-        .where(eq(invoices.companyId, companyId));
+        .where(eq(expenseTransactions.companyId, companyId))
+        .orderBy(desc(expenseTransactions.transactionDate))
+        .limit(limit);
 
       // Get bank statement transactions
-      const bankTransactionQuery = db
+      const bankTransactionResults = await db
         .select({
           id: sql<string>`CONCAT('bank_', ${bankStatementTransactions.id})`,
           transactionDate: bankStatementTransactions.transactionDate,
@@ -2621,52 +2531,102 @@ export class DatabaseStorage implements IStorage {
         .leftJoin(vendors, eq(bankStatementTransactions.vendorId, vendors.id))
         .leftJoin(customers, eq(bankStatementTransactions.customerId, customers.id))
         .innerJoin(bankStatementUploads, eq(bankStatementTransactions.uploadId, bankStatementUploads.id))
-        .where(eq(bankStatementUploads.companyId, companyId));
-
-      // Union all transactions and order by date
-      const allTransactions = await db
-        .select()
-        .from(
-          sql`(
-            ${expenseQuery.getSQL()} 
-            UNION ALL 
-            ${revenueQuery.getSQL()}
-            UNION ALL 
-            ${bankTransactionQuery.getSQL()}
-          ) as combined_transactions`
-        )
-        .orderBy(sql`transaction_date DESC`)
+        .where(eq(bankStatementUploads.companyId, companyId))
+        .orderBy(desc(bankStatementTransactions.transactionDate))
         .limit(limit);
 
-      return allTransactions.map(row => ({
-        ...row,
-        totalAmount: Number(row.totalAmount || 0),
-      }));
+      // Get revenue from customer statement lines
+      const revenueTransactionResults = await db
+        .select({
+          id: sql<string>`CONCAT('rev_', ${customerStatementLines.id})`,
+          transactionDate: customerStatementLines.lineDate,
+          description: customerStatementLines.description,
+          totalAmount: customerStatementLines.revenue,
+          categoryName: sql<string>`'Revenue'`,
+          vendorName: sql<string>`NULL`,
+          customerName: customers.name,
+          type: sql<string>`'revenue'`,
+        })
+        .from(customerStatementLines)
+        .innerJoin(customers, eq(customerStatementLines.customerId, customers.id))
+        .where(and(
+          eq(customers.companyId, companyId),
+          eq(customerStatementLines.lineType, 'REVENUE')
+        ))
+        .orderBy(desc(customerStatementLines.lineDate))
+        .limit(limit);
+
+      // Combine all transactions and sort by date
+      const allTransactions = [
+        ...expenseTransactionResults.map(t => ({ ...t, totalAmount: Number(t.totalAmount || 0) })),
+        ...bankTransactionResults.map(t => ({ ...t, totalAmount: Number(t.totalAmount || 0) })),
+        ...revenueTransactionResults.map(t => ({ ...t, totalAmount: Number(t.totalAmount || 0) }))
+      ];
+
+      // Sort by date and limit
+      return allTransactions
+        .sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime())
+        .slice(0, limit);
+
     } catch (error) {
       console.error('Error in getRecentTransactions:', error);
-      // Fallback to expense transactions only
-      const result = await db
-        .select({
-          id: expenseTransactions.id,
-          transactionDate: expenseTransactions.transactionDate,
-          description: expenseTransactions.description,
-          totalAmount: expenseTransactions.totalAmount,
-          categoryName: expenseCategories.name,
-          vendorName: vendors.name,
-          customerName: sql<string>`NULL`,
-          type: sql<string>`'expense'`,
-        })
-        .from(expenseTransactions)
-        .leftJoin(expenseCategories, eq(expenseTransactions.expenseCategoryId, expenseCategories.id))
-        .leftJoin(vendors, eq(expenseTransactions.vendorId, vendors.id))
-        .where(eq(expenseTransactions.companyId, companyId))
-        .orderBy(desc(expenseTransactions.transactionDate))
-        .limit(limit);
+      return [];
+    }
+  }
 
-      return result.map(row => ({
-        ...row,
-        totalAmount: Number(row.totalAmount || 0),
-      }));
+  // Get outstanding customers based on outstanding balances tab logic
+  async getOutstandingCustomers(companyId: number): Promise<any[]> {
+    try {
+      const customersWithBalance = await db
+        .select({
+          id: customers.id,
+          name: customers.name,
+          email: customers.email,
+          phone: customers.phone,
+          openingBalance: customers.openingBalance,
+          totalRevenue: sql<number>`
+            COALESCE(
+              (SELECT SUM(CAST(revenue AS NUMERIC))
+               FROM ${customerStatementLines}
+               WHERE customer_id = ${customers.id}
+                 AND line_type = 'REVENUE'
+              ), 0
+            )
+          `,
+          totalCredits: sql<number>`
+            COALESCE(
+              (SELECT SUM(CAST(credit_amount AS NUMERIC))
+               FROM ${customerStatementLines}
+               WHERE customer_id = ${customers.id}
+                 AND line_type = 'BANK_TRANSACTION'
+              ), 0
+            )
+          `
+        })
+        .from(customers)
+        .where(eq(customers.companyId, companyId));
+
+      // Filter customers with positive outstanding balance
+      return customersWithBalance
+        .map(customer => {
+          const openingBalance = Number(customer.openingBalance || 0);
+          const totalRevenue = Number(customer.totalRevenue || 0);
+          const totalCredits = Number(customer.totalCredits || 0);
+          const outstandingBalance = openingBalance + totalRevenue - totalCredits;
+          
+          return {
+            ...customer,
+            openingBalance,
+            totalRevenue,
+            totalCredits,
+            outstandingBalance
+          };
+        })
+        .filter(customer => customer.outstandingBalance > 0)
+        .sort((a, b) => b.outstandingBalance - a.outstandingBalance); // Sort by highest balance first
+    } catch (error) {
+      console.error('Error in getOutstandingCustomers:', error);
+      return [];
     }
   }
 

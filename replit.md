@@ -146,6 +146,13 @@ This is a comprehensive accounting software solution built with a modern full-st
 
 ```
 Changelog:
+- August 27, 2025. Fixed dashboard to display real transaction numbers from actual database sources
+- August 27, 2025. Updated revenue calculation to show data from uploaded revenue sheets (customer statement lines)
+- August 27, 2025. Enhanced expense calculation to display data from expenses module transactions
+- August 27, 2025. Fixed outstanding balance to calculate from outstanding balances tab data (customer opening balances + revenue - payments)
+- August 27, 2025. Improved recent transactions to show all transaction types (expenses, revenue from uploads, bank transactions)
+- August 27, 2025. Added outstanding customers display based on outstanding balances tab logic
+- August 27, 2025. Completely removed Analytics section from navigation and routing due to SQL syntax errors
 - August 27, 2025. Implemented comprehensive automated invoice generation system with recurring templates, scheduling, and email automation
 - August 27, 2025. Added recurring invoice templates with configurable frequency (weekly, monthly, quarterly, yearly)
 - August 27, 2025. Created automated job system for processing invoice generation and email sending
