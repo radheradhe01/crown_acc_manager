@@ -153,6 +153,7 @@ export function validateCSVHeaders(headers: string[]): { isValid: boolean; error
   const hasAmount = normalizedHeaders.includes('amount');
   const hasDebit = normalizedHeaders.includes('debit');
   const hasCredit = normalizedHeaders.includes('credit');
+  const hasType = normalizedHeaders.includes('type');
   
   if (!hasAmount && !(hasDebit || hasCredit)) {
     errors.push('Missing required amount column: either "amount" or "debit/credit" columns');
@@ -163,20 +164,27 @@ export function validateCSVHeaders(headers: string[]): { isValid: boolean; error
 
 // Bank statement CSV parser
 export function parseBankStatementCSV(text: string): any[] {
-  const lines = text.trim().split('\n');
+  const lines = text.trim().split('\n').filter(line => line.trim().length > 0);
   if (lines.length === 0) return [];
 
-  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  // Detect delimiter - check if it's tab-separated or comma-separated
+  const firstLine = lines[0];
+  const delimiter = firstLine.includes('\t') ? '\t' : ',';
+  
+  const headers = firstLine.split(delimiter).map(h => h.trim().replace(/"/g, ''));
   const data: any[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-    if (values.length === headers.length) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const values = line.split(delimiter).map(v => v.trim().replace(/"/g, ''));
+    if (values.length > 0) {
       const row: any = {};
       headers.forEach((header, index) => {
         // Normalize header names to match expected format
         const normalizedHeader = normalizeBankStatementHeader(header);
-        row[normalizedHeader] = values[index];
+        row[normalizedHeader] = values[index] || '';
       });
       data.push(row);
     }
@@ -202,6 +210,8 @@ function normalizeBankStatementHeader(header: string): string {
     'credit': 'credit',
     'balance': 'balance',
     'runningbalance': 'balance',
+    'type': 'type',
+    'transactiontype': 'type',
   };
 
   return fieldMap[normalized] || header;
