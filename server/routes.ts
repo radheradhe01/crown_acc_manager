@@ -385,7 +385,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Test the SMTP connection
-      const transporter = nodemailer.createTransporter(smtpConfig);
+      const transporter = nodemailer.createTransport(smtpConfig);
 
       await transporter.verify();
       res.json({ message: "SMTP connection successful" });
