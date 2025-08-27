@@ -5,10 +5,11 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ArrowRight } from "lucide-react";
+import { Upload, FileText, DollarSign, Calendar, CheckCircle, XCircle, Clock, ArrowRight, Download } from "lucide-react";
 import { format } from "date-fns";
 import { RevenueUploadModal } from "@/components/modals/revenue-upload-modal";
 import { useToast } from "@/hooks/use-toast";
+import { exportRevenueData } from "@/lib/excel-export";
 import type { RevenueUpload } from "@shared/schema";
 
 export default function Revenue() {
@@ -21,6 +22,20 @@ export default function Revenue() {
     queryKey: [`/api/companies/${currentCompany?.id}/revenue-uploads`],
     enabled: !!currentCompany?.id,
   });
+
+  const { data: customerStatements } = useQuery({
+    queryKey: [`/api/companies/${currentCompany?.id}/customer-statements`],
+    enabled: !!currentCompany?.id,
+  });
+
+  const handleExportRevenueData = () => {
+    if (customerStatements?.customers) {
+      const allLines = customerStatements.customers.flatMap((customer: any) => 
+        customer.lines?.filter((line: any) => line.lineType === 'REVENUE') || []
+      );
+      exportRevenueData(allLines);
+    }
+  };
 
   const processUploadMutation = useMutation({
     mutationFn: async ({ uploadId, csvData }: { uploadId: number; csvData: any[] }) => {
@@ -103,10 +118,20 @@ export default function Revenue() {
             Upload and manage revenue data for {currentCompany.name}
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Upload className="h-4 w-4 mr-2" />
-          Upload Revenue Data
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportRevenueData}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export Revenue Data
+          </Button>
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Revenue Data
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

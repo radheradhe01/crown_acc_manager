@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Edit, Eye, Trash2, Filter, Calendar, DollarSign, ArrowLeft, TrendingUp } from "lucide-react";
+import { Plus, Edit, Eye, Trash2, Filter, Calendar, DollarSign, ArrowLeft, TrendingUp, Download } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { formatCurrency, formatDate } from "@/lib/accounting-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { EnhancedCategorySelector } from "@/components/enhanced-category-selector";
+import { exportExpenseTransactions } from "@/lib/excel-export";
 import type { ExpenseTransaction, ExpenseCategory, Vendor } from "@shared/schema";
 
 export default function Expenses() {
@@ -229,10 +230,20 @@ export default function Expenses() {
             </div>
           </div>
           
-          <Button onClick={() => setIsExpenseModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Add New Expense
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => exportExpenseTransactions(filteredExpenses)}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export Expenses
+            </Button>
+            <Button onClick={() => setIsExpenseModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="mr-2 h-4 w-4" />
+              Add New Expense
+            </Button>
+          </div>
         </div>
 
         {/* Summary View or Category Details */}

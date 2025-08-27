@@ -7,9 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Users, DollarSign, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, DollarSign, Search, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { formatCurrency, formatDate } from "@/lib/accounting-utils";
+import { exportOutstandingBalances, exportCustomerStatements } from "@/lib/excel-export";
 
 interface CustomerStatement {
   id: number;
@@ -187,6 +188,24 @@ export default function OutstandingBalances() {
               className="pl-10"
             />
           </div>
+          
+          <Button
+            variant="outline"
+            onClick={() => exportOutstandingBalances(allReceivableCustomers)}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export Receivables
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => exportCustomerStatements(customers)}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export All Customers
+          </Button>
           
           <select
             value={sortBy}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap, Users, Truck, Plus, Edit, AlertCircle } from "lucide-react";
+import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap, Users, Truck, Plus, Edit, AlertCircle, Download } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,6 +18,7 @@ import { useCurrentCompany } from "@/hooks/use-current-company";
 import { formatDate, formatCurrency } from "@/lib/accounting-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { exportBankTransactions } from "@/lib/excel-export";
 import type { BankStatementUpload, BankStatementTransaction, Customer, Vendor, ExpenseCategory } from "@shared/schema";
 
 export default function BankStatements() {
@@ -217,6 +218,14 @@ export default function BankStatements() {
                 <h2 className="text-lg font-semibold text-gray-900">Uncategorized Transactions</h2>
                 <p className="text-sm text-gray-600">Review and categorize these bank transactions</p>
               </div>
+              <Button
+                variant="outline"
+                onClick={() => exportBankTransactions(transactions.filter(t => !t.customerId && !t.vendorId && !t.categoryId))}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export Uncategorized
+              </Button>
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -308,6 +317,14 @@ export default function BankStatements() {
                 <h2 className="text-lg font-semibold text-gray-900">Completed Transactions</h2>
                 <p className="text-sm text-gray-600">Successfully categorized bank transactions</p>
               </div>
+              <Button
+                variant="outline"
+                onClick={() => exportBankTransactions(transactions.filter(t => t.customerId || t.vendorId || t.categoryId))}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export Completed
+              </Button>
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
