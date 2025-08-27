@@ -1,5 +1,7 @@
 import { createTransporter } from './email-config';
-import type { Customer } from '@shared/schema';
+import nodemailer from 'nodemailer';
+import type { Customer, Company } from '@shared/schema';
+import { storage } from './storage';
 
 export interface PaymentReminderData {
   customer: Customer;
@@ -7,6 +9,7 @@ export interface PaymentReminderData {
   daysOverdue: number;
   invoiceNumbers?: string[];
   dueDate?: Date;
+  companyId: number;
 }
 
 export interface EmailTemplate {
@@ -25,23 +28,104 @@ export class EmailService {
 
   async sendPaymentReminder(data: PaymentReminderData, template?: EmailTemplate): Promise<boolean> {
     try {
-      const emailTemplate = template || this.getDefaultPaymentReminderTemplate(data);
+      // Get company-specific SMTP configuration
+      const company = await storage.getCompany(data.companyId);
+      if (!company) {
+        console.error('Company not found for payment reminder');
+        return false;
+      }
+
+      // Create transporter with company SMTP settings or fallback to default
+      const transporter = await this.createCompanyTransporter(company);
+      
+      const emailTemplate = template || this.getPaymentReminderTemplate(data, company);
+      
+      const fromEmail = (company as any).smtpFromEmail || process.env.SMTP_FROM_EMAIL || process.env.GOOGLE_WORKSPACE_EMAIL || 'noreply@yourcompany.com';
+      const fromName = (company as any).smtpFromName || company.name || 'Accounts Team';
       
       const mailOptions = {
-        from: process.env.SMTP_FROM_EMAIL || 'noreply@yourcompany.com',
+        from: `${fromName} <${fromEmail}>`,
         to: data.customer.email,
         subject: emailTemplate.subject,
         text: emailTemplate.text,
         html: emailTemplate.html,
       };
 
-      const result = await this.transporter.sendMail(mailOptions);
+      console.log(`Sending payment reminder to ${data.customer.email} from ${mailOptions.from}`);
+      const result = await transporter.sendMail(mailOptions);
       console.log('Payment reminder email sent:', result.messageId);
       return true;
     } catch (error) {
       console.error('Failed to send payment reminder email:', error);
       return false;
     }
+  }
+
+  private async createCompanyTransporter(company: Company) {
+    // Use company SMTP settings if configured
+    if ((company as any).smtpHost && (company as any).smtpUser && (company as any).smtpPassword) {
+      return nodemailer.createTransport({
+        host: (company as any).smtpHost,
+        port: (company as any).smtpPort || 587,
+        secure: (company as any).smtpSecure || false,
+        auth: {
+          user: (company as any).smtpUser,
+          pass: (company as any).smtpPassword,
+        },
+        tls: {
+          rejectUnauthorized: false
+        }
+      });
+    }
+    
+    // Fallback to default system configuration
+    return this.transporter;
+  }
+
+  private getPaymentReminderTemplate(data: PaymentReminderData, company: Company): EmailTemplate {
+    // Use company custom template if available
+    const customSubject = (company as any).paymentReminderSubject;
+    const customTemplate = (company as any).paymentReminderTemplate;
+    
+    if (customSubject && customTemplate) {
+      // Replace placeholders in custom template
+      const subject = this.replacePlaceholders(customSubject, data, company);
+      const text = this.replacePlaceholders(customTemplate, data, company);
+      const html = this.convertTextToHtml(text);
+      
+      return { subject, text, html };
+    }
+    
+    // Fallback to default template
+    return this.getDefaultPaymentReminderTemplate(data);
+  }
+
+  private replacePlaceholders(template: string, data: PaymentReminderData, company: Company): string {
+    return template
+      .replace(/\[CUSTOMER_NAME\]/g, data.customer.name)
+      .replace(/\[COMPANY_NAME\]/g, company.name)
+      .replace(/\[AMOUNT_DUE\]/g, data.balanceDue.toFixed(2))
+      .replace(/\[DAYS_OVERDUE\]/g, data.daysOverdue.toString())
+      .replace(/\[DUE_DATE\]/g, data.dueDate ? data.dueDate.toLocaleDateString() : 'N/A')
+      .replace(/\[INVOICE_NUMBERS\]/g, data.invoiceNumbers?.join(', ') || 'N/A');
+  }
+
+  private convertTextToHtml(text: string): string {
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        ${text.split('\n').map(line => `<p>${line}</p>`).join('')}
+    </div>
+</body>
+</html>`;
   }
 
   private getDefaultPaymentReminderTemplate(data: PaymentReminderData): EmailTemplate {

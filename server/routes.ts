@@ -192,7 +192,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 balanceDue: totalDue,
                 daysOverdue,
                 invoiceNumbers: customerInvoices.map(inv => inv.invoiceNumber),
-                dueDate
+                dueDate,
+                companyId
               });
               
               results.push({ customerId, customerName: customer.name, success });

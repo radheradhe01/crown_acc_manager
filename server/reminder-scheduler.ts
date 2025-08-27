@@ -98,7 +98,10 @@ export class ReminderScheduler {
       }
 
       // Send the reminder
-      const success = await emailService.sendPaymentReminder(data);
+      const success = await emailService.sendPaymentReminder({
+        ...data,
+        companyId: data.customer.companyId
+      });
       
       if (success) {
         await this.recordReminderSent(data.customer.id);
