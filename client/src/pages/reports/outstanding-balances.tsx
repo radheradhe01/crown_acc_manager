@@ -156,11 +156,7 @@ export default function OutstandingBalances() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Customer Name</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Payment Terms</TableHead>
-                        <TableHead>Total Invoiced</TableHead>
-                        <TableHead>Amount Paid</TableHead>
-                        <TableHead>Outstanding Balance</TableHead>
+                        <TableHead className="text-right">Outstanding Balance</TableHead>
                         <TableHead>Last Invoice Date</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -168,18 +164,7 @@ export default function OutstandingBalances() {
                       {receivableCustomers.map((customer) => (
                         <TableRow key={customer.id}>
                           <TableCell className="font-medium">{customer.name}</TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div>{customer.email}</div>
-                              <div className="text-gray-500">{customer.phone}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{customer.paymentTerms}</Badge>
-                          </TableCell>
-                          <TableCell>{formatCurrency(customer.totalInvoiced)}</TableCell>
-                          <TableCell>{formatCurrency(customer.paidAmount)}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-right">
                             <span className="font-semibold text-green-600">
                               {formatCurrency(customer.totalBalance)}
                             </span>
@@ -216,11 +201,7 @@ export default function OutstandingBalances() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Customer Name</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Payment Terms</TableHead>
-                        <TableHead>Total Invoiced</TableHead>
-                        <TableHead>Amount Paid</TableHead>
-                        <TableHead>Outstanding Balance</TableHead>
+                        <TableHead className="text-right">Outstanding Balance</TableHead>
                         <TableHead>Last Invoice Date</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -228,18 +209,7 @@ export default function OutstandingBalances() {
                       {payableCustomers.map((customer) => (
                         <TableRow key={customer.id}>
                           <TableCell className="font-medium">{customer.name}</TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div>{customer.email}</div>
-                              <div className="text-gray-500">{customer.phone}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{customer.paymentTerms}</Badge>
-                          </TableCell>
-                          <TableCell>{formatCurrency(customer.totalInvoiced)}</TableCell>
-                          <TableCell>{formatCurrency(customer.paidAmount)}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-right">
                             <span className="font-semibold text-red-600">
                               {formatCurrency(Math.abs(customer.totalBalance))}
                             </span>
