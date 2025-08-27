@@ -117,9 +117,11 @@ export default function CustomerStatements() {
     customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  const totalReceivables = filteredCustomers.reduce((sum, customer) => sum + customer.receivableAmount, 0);
-  const totalPaid = filteredCustomers.reduce((sum, customer) => sum + customer.paidAmount, 0);
-  const totalOutstanding = filteredCustomers.reduce((sum, customer) => sum + customer.outstandingBalance, 0);
+  const totalRevenue = filteredCustomers.reduce((sum, customer) => sum + customer.totalRevenue, 0);
+  const totalCost = filteredCustomers.reduce((sum, customer) => sum + customer.totalCost, 0);
+  const totalCredits = filteredCustomers.reduce((sum, customer) => sum + customer.totalCredits, 0);
+  const totalDebits = filteredCustomers.reduce((sum, customer) => sum + customer.totalDebits, 0);
+  const totalClosingBalance = filteredCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -424,14 +426,14 @@ export default function CustomerStatements() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Receivables</p>
+                <p className="text-sm text-gray-600">Total Revenue</p>
                 <p className="text-2xl font-bold text-green-600">
-                  ${totalReceivables.toLocaleString()}
+                  ${totalRevenue.toLocaleString()}
                 </p>
               </div>
               <TrendingUp className="w-8 h-8 text-green-600" />
@@ -443,12 +445,12 @@ export default function CustomerStatements() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Paid</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  ${totalPaid.toLocaleString()}
+                <p className="text-sm text-gray-600">Total Cost</p>
+                <p className="text-2xl font-bold text-red-600">
+                  ${totalCost.toLocaleString()}
                 </p>
               </div>
-              <DollarSign className="w-8 h-8 text-blue-600" />
+              <TrendingDown className="w-8 h-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
@@ -457,12 +459,40 @@ export default function CustomerStatements() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Outstanding Balance</p>
-                <p className="text-2xl font-bold text-orange-600">
-                  ${totalOutstanding.toLocaleString()}
+                <p className="text-sm text-gray-600">Total Credits</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  ${totalCredits.toLocaleString()}
                 </p>
               </div>
-              <TrendingDown className="w-8 h-8 text-orange-600" />
+              <CreditCard className="w-8 h-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Debits</p>
+                <p className="text-2xl font-bold text-orange-600">
+                  ${totalDebits.toLocaleString()}
+                </p>
+              </div>
+              <DollarSign className="w-8 h-8 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Net Balance</p>
+                <p className={`text-2xl font-bold ${getBalanceColor(totalClosingBalance)}`}>
+                  ${totalClosingBalance.toLocaleString()}
+                </p>
+              </div>
+              {getBalanceIcon(totalClosingBalance)}
             </div>
           </CardContent>
         </Card>
