@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, Mail, Send, Settings, TestTube, Clock, DollarSign } from "lucide-react";
+import { AlertCircle, Mail, Send, Settings, Clock, DollarSign } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CustomerReminderSettingsModal } from "@/components/modals/customer-reminder-settings-modal";
 
@@ -40,7 +40,7 @@ export default function PaymentReminders() {
   const { toast } = useToast();
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [settingsCustomer, setSettingsCustomer] = useState<CustomerWithBalance | null>(null);
-  const [emailConfigured, setEmailConfigured] = useState(false);
+
   const [reminderSettings, setReminderSettings] = useState<PaymentReminderSettings>({
     enableDailyReminders: false,
     reminderTimes: [0, 7, 15, 30],
@@ -53,30 +53,7 @@ export default function PaymentReminders() {
     enabled: !!currentCompany?.id,
   });
 
-  const testEmailMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("/api/email/test-connection", {
-        method: "POST",
-      });
-    },
-    onSuccess: (data) => {
-      setEmailConfigured(data.connected);
-      toast({
-        title: data.connected ? "Success" : "Failed",
-        description: data.connected 
-          ? "Email connection is working properly" 
-          : "Email connection failed - please check your configuration",
-        variant: data.connected ? "default" : "destructive",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to test email connection",
-        variant: "destructive",
-      });
-    },
-  });
+
 
   const sendRemindersMutation = useMutation({
     mutationFn: async (customerIds?: number[]) => {
@@ -209,51 +186,7 @@ export default function PaymentReminders() {
         </div>
       </div>
 
-      {/* Email Configuration Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Email Configuration
-          </CardTitle>
-          <CardDescription>
-            Configure and test your email settings for sending payment reminders
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              To configure email settings, you need to set up your Google Workspace credentials in the environment variables:
-              <br />
-              • GOOGLE_WORKSPACE_EMAIL: Your email address
-              <br />
-              • GOOGLE_WORKSPACE_APP_PASSWORD: Your app-specific password
-              <br />
-              • SMTP_FROM_EMAIL: The from email address for reminders
-            </AlertDescription>
-          </Alert>
-          
-          <Button
-            onClick={() => testEmailMutation.mutate()}
-            disabled={testEmailMutation.isPending}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <TestTube className="h-4 w-4" />
-            {testEmailMutation.isPending ? "Testing..." : "Test Email Connection"}
-          </Button>
-          
-          {emailConfigured && (
-            <Alert>
-              <Mail className="h-4 w-4" />
-              <AlertDescription className="text-green-600">
-                Email is configured and working properly!
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+
 
       {/* Customers with Outstanding Balance */}
       <Card>
