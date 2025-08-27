@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { formatCurrency, calculateDaysOverdue, formatDate } from "@/lib/accounting-utils";
+import { useLocation } from "wouter";
 
 export function OutstandingCustomers() {
   const { currentCompany } = useCurrentCompany();
+  const [, setLocation] = useLocation();
 
   const { data: outstandingBalances, isLoading } = useQuery({
     queryKey: ["/api/companies", currentCompany?.id, "customer-statements"],
@@ -77,7 +79,11 @@ export function OutstandingCustomers() {
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Payment Reminders</h3>
-          <Button variant="link" className="text-blue-600 hover:text-blue-700 text-sm font-medium p-0">
+          <Button 
+            variant="link" 
+            className="text-blue-600 hover:text-blue-700 text-sm font-medium p-0"
+            onClick={() => setLocation("/reports/outstanding-balances")}
+          >
             View All Receivables
           </Button>
         </div>
