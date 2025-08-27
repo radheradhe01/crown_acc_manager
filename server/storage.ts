@@ -2918,18 +2918,31 @@ export class DatabaseStorage implements IStorage {
         .limit(limit)
         .offset(offset);
 
-      const processedCustomers = customerStatements.map(customer => ({
-        ...customer,
-        openingBalance: Number(customer.openingBalance || 0),
-        receivableAmount: Number(customer.receivableAmount || 0),
-        paidAmount: Number(customer.paidAmount || 0),
-        totalInvoiced: Number(customer.totalInvoiced || 0),
-        invoiceCount: Number(customer.invoiceCount || 0),
+      const processedCustomers = customerStatements.map(customer => {
+        const openingBalance = Number(customer.openingBalance || 0);
+        const receivableAmount = Number(customer.receivableAmount || 0);
+        const paidAmount = Number(customer.paidAmount || 0);
+        const totalInvoiced = Number(customer.totalInvoiced || 0);
+        const invoiceCount = Number(customer.invoiceCount || 0);
+        
         // Calculate outstanding balance (receivables - what's been paid)
-        outstandingBalance: Number(customer.receivableAmount || 0) - Number(customer.paidAmount || 0),
+        const outstandingBalance = receivableAmount - paidAmount;
+        
         // Calculate total balance including opening balance
-        totalBalance: Number(customer.openingBalance || 0) + Number(customer.receivableAmount || 0) - Number(customer.paidAmount || 0),
-      }));
+        // If customers have overpaid or have credit balances, this becomes negative (payable)
+        const totalBalance = openingBalance + receivableAmount - paidAmount;
+        
+        return {
+          ...customer,
+          openingBalance,
+          receivableAmount,
+          paidAmount,
+          totalInvoiced,
+          invoiceCount,
+          outstandingBalance,
+          totalBalance,
+        };
+      });
 
       return {
         customers: processedCustomers,
