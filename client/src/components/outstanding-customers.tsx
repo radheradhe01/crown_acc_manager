@@ -8,10 +8,15 @@ import { formatCurrency, calculateDaysOverdue } from "@/lib/accounting-utils";
 export function OutstandingCustomers() {
   const { currentCompany } = useCurrentCompany();
 
-  const { data: outstandingCustomers = [], isLoading } = useQuery({
-    queryKey: ["/api/companies", currentCompany?.id, "dashboard", "outstanding-customers"],
+  const { data: outstandingBalances, isLoading } = useQuery({
+    queryKey: ["/api/companies", currentCompany?.id, "customer-statements"],
     enabled: !!currentCompany?.id,
   });
+
+  // Extract customers with outstanding balances for payment reminders
+  const outstandingCustomers = outstandingBalances?.customers?.filter((customer: any) => 
+    customer.summary.closingBalance > 0
+  ) || [];
 
   const getCustomerIcon = (name: string | undefined | null) => {
     if (!name) return <User className="h-5 w-5 text-gray-600" />;
@@ -38,11 +43,12 @@ export function OutstandingCustomers() {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Outstanding Customers</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Payment Reminders</h3>
           <Button variant="link" className="text-blue-600 hover:text-blue-700 text-sm font-medium p-0">
-            View Report
+            View All Receivables
           </Button>
         </div>
+        <p className="text-sm text-gray-600 mt-1">Customers with outstanding balances requiring payment follow-up</p>
       </div>
       
       <div className="p-6">
@@ -66,21 +72,24 @@ export function OutstandingCustomers() {
           </div>
         ) : outstandingCustomers.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-500">No outstanding customer balances</p>
+            <p className="text-gray-500">No customers with outstanding balances</p>
+            <p className="text-xs text-gray-400 mt-1">All receivables are current</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {outstandingCustomers.slice(0, 5).map((customer: any) => {
-              const overdueStatus = getOverdueStatus(customer.oldestInvoiceDate);
+            {outstandingCustomers.slice(0, 5).map((customer: any, index: number) => {
+              const closingBalance = customer.summary.closingBalance;
+              const oldestInvoiceDate = customer.lines?.find((line: any) => line.lineType === 'REVENUE')?.lineDate;
+              const overdueStatus = oldestInvoiceDate ? getOverdueStatus(oldestInvoiceDate) : { text: "Current", variant: "outline" as const };
               
               return (
-                <div key={customer.customerId} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                <div key={`outstanding-${customer.customer.id}-${index}`} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
                   <div className="flex items-center">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-                      {getCustomerIcon(customer.customerName)}
+                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mr-3">
+                      {getCustomerIcon(customer.customer.name)}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{customer.customerName}</p>
+                      <p className="text-sm font-medium text-gray-900">{customer.customer.name}</p>
                       <Badge variant={overdueStatus.variant} className="text-xs">
                         {overdueStatus.text}
                       </Badge>
@@ -88,10 +97,10 @@ export function OutstandingCustomers() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-orange-600">
-                      {formatCurrency(customer.totalAmount)}
+                      {formatCurrency(closingBalance)}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {customer.invoiceCount} invoice{customer.invoiceCount !== 1 ? 's' : ''}
+                      Outstanding Balance
                     </p>
                   </div>
                 </div>
