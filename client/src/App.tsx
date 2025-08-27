@@ -36,7 +36,7 @@ function AuthWrapper() {
   const { data: currentUser } = useQuery({
     queryKey: ["/api/auth/me"],
     retry: false,
-    enabled: !user && location !== "/login",
+    enabled: location !== "/login",
   });
 
   useEffect(() => {

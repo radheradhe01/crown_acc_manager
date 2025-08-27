@@ -23,6 +23,12 @@ export async function apiRequest(
     credentials: "include",
   });
 
+  if (res.status === 401) {
+    // Redirect to login on 401
+    window.location.href = "/login";
+    throw new Error("Authentication required");
+  }
+
   await throwIfResNotOk(res);
   return await res.json();
 }
@@ -37,13 +43,20 @@ export const getQueryFn: <T>(options: {
       credentials: "include",
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      }
+      // Redirect to login on 401
+      window.location.href = "/login";
+      throw new Error("Authentication required");
     }
 
     await throwIfResNotOk(res);
     return await res.json();
   };
+
+
 
 export const queryClient = new QueryClient({
   defaultOptions: {
