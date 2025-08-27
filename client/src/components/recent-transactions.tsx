@@ -9,7 +9,7 @@ export function RecentTransactions() {
   const { currentCompany } = useCurrentCompany();
 
   const { data: recentTransactions = [], isLoading } = useQuery({
-    queryKey: ["/api/companies", currentCompany?.id, "dashboard", "recent-transactions"],
+    queryKey: [`/api/companies/${currentCompany?.id}/dashboard/recent-transactions`],
     enabled: !!currentCompany?.id,
   });
 
