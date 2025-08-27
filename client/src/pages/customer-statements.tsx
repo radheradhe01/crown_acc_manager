@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,8 @@ export default function CustomerStatements() {
   const { currentCompany } = useCurrentCompany();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [sortBy, setSortBy] = useState("balance-desc");
   const [pageSize, setPageSize] = useState(10);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerStatement | null>(null);
   const [startDate, setStartDate] = useState("");
@@ -112,10 +114,48 @@ export default function CustomerStatements() {
     enabled: !!currentCompany?.id && !!selectedCustomer?.id,
   });
 
-  const filteredCustomers = statementsData?.customers?.filter(customer =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  // Get all companies for filter dropdown
+  const { data: companiesData } = useQuery({
+    queryKey: ['/api/companies'],
+  });
+
+  const filteredAndSortedCustomers = useMemo(() => {
+    let customers = statementsData?.customers || [];
+    
+    // Apply search filter
+    if (searchTerm) {
+      customers = customers.filter(customer =>
+        customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Apply company filter (if we had company info per customer, but for now just search filter)
+    
+    // Apply sorting
+    customers = [...customers].sort((a, b) => {
+      switch (sortBy) {
+        case 'balance-desc':
+          return Math.abs(b.totalBalance) - Math.abs(a.totalBalance);
+        case 'balance-asc':
+          return Math.abs(a.totalBalance) - Math.abs(b.totalBalance);
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'revenue-desc':
+          return b.totalRevenue - a.totalRevenue;
+        case 'revenue-asc':
+          return a.totalRevenue - b.totalRevenue;
+        default:
+          return Math.abs(b.totalBalance) - Math.abs(a.totalBalance);
+      }
+    });
+    
+    return customers;
+  }, [statementsData?.customers, searchTerm, sortBy]);
+
+  const filteredCustomers = filteredAndSortedCustomers;
 
   const totalRevenue = filteredCustomers.reduce((sum, customer) => sum + customer.totalRevenue, 0);
   const totalCost = filteredCustomers.reduce((sum, customer) => sum + customer.totalCost, 0);
@@ -514,7 +554,7 @@ export default function CustomerStatements() {
       </div>
 
       {/* Search and Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
           <Input
@@ -524,6 +564,20 @@ export default function CustomerStatements() {
             className="pl-10"
           />
         </div>
+        
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="px-3 py-2 border rounded-md min-w-[180px]"
+        >
+          <option value="balance-desc">Highest Balance First</option>
+          <option value="balance-asc">Lowest Balance First</option>
+          <option value="revenue-desc">Highest Revenue First</option>
+          <option value="revenue-asc">Lowest Revenue First</option>
+          <option value="name-asc">Name A-Z</option>
+          <option value="name-desc">Name Z-A</option>
+        </select>
+        
         <select
           value={pageSize}
           onChange={(e) => setPageSize(Number(e.target.value))}
