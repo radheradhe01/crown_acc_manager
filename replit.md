@@ -146,6 +146,10 @@ This is a comprehensive accounting software solution built with a modern full-st
 
 ```
 Changelog:
+- August 27, 2025. Added Total Cost and Total Payable metrics to dashboard for comprehensive financial overview
+- August 27, 2025. Total Cost displays cost data from uploaded revenue sheets (cost column in customer statement lines)
+- August 27, 2025. Total Payable calculates from vendor bills and opening balances to show amounts owed
+- August 27, 2025. Redesigned dashboard layout to display 6 metrics in responsive grid (3 columns on large screens, 6 on extra large)
 - August 27, 2025. Fixed dashboard to display real transaction numbers from actual database sources
 - August 27, 2025. Updated revenue calculation to show data from uploaded revenue sheets (customer statement lines)
 - August 27, 2025. Enhanced expense calculation to display data from expenses module transactions

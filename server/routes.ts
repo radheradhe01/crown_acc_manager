@@ -968,14 +968,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startDate = req.query.startDate as string || defaultStartDate;
       const endDate = req.query.endDate as string || defaultEndDate;
       
-      // Get total revenue (from invoices)
+      // Get total revenue (from uploaded revenue sheets)
       const totalRevenue = await storage.getTotalRevenue(companyId, startDate, endDate);
       
       // Get total expenses (from expense transactions)
       const totalExpenses = await storage.getTotalExpenses(companyId, startDate, endDate);
       
+      // Get total cost (from uploaded revenue sheets cost column)
+      const totalCost = await storage.getTotalCost(companyId, startDate, endDate);
+      
       // Get outstanding receivables (not filtered by date - always current)
       const outstandingBalance = await storage.getOutstandingReceivables(companyId);
+      
+      // Get total payable (from bills and vendor balances)
+      const totalPayable = await storage.getTotalPayable(companyId);
       
       // Calculate net profit
       const netProfit = totalRevenue - totalExpenses;
@@ -983,7 +989,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         totalRevenue,
         totalExpenses,
+        totalCost,
         outstandingBalance,
+        totalPayable,
         netProfit,
         period: { startDate, endDate }
       });

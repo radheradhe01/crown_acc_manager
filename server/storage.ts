@@ -175,7 +175,9 @@ export interface IStorage {
   getDashboardMetrics(companyId: number): Promise<{
     totalRevenue: number;
     totalExpenses: number;
+    totalCost: number;
     outstandingBalance: number;
+    totalPayable: number;
     netProfit: number;
   }>;
 
@@ -2504,6 +2506,105 @@ export class DatabaseStorage implements IStorage {
       return totalOutstanding;
     } catch (error) {
       console.error('Error in getOutstandingReceivables:', error);
+      return 0;
+    }
+  }
+
+  async getTotalCost(companyId: number, startDate: string, endDate: string): Promise<number> {
+    try {
+      // Get cost from customer statement lines
+      const statementCost = await db
+        .select({ 
+          total: sql<number>`COALESCE(SUM(CAST(${customerStatementLines.cost} AS NUMERIC)), 0)` 
+        })
+        .from(customerStatementLines)
+        .innerJoin(customers, eq(customerStatementLines.customerId, customers.id))
+        .where(and(
+          eq(customers.companyId, companyId),
+          eq(customerStatementLines.lineType, 'REVENUE'),
+          gte(customerStatementLines.lineDate, startDate),
+          lte(customerStatementLines.lineDate, endDate)
+        ));
+
+      const total = Number(statementCost[0]?.total || 0);
+      
+      // If no cost found for date range, return all cost (not filtered by date)
+      if (total === 0) {
+        const totalCost = await db
+          .select({ 
+            total: sql<number>`COALESCE(SUM(CAST(${customerStatementLines.cost} AS NUMERIC)), 0)` 
+          })
+          .from(customerStatementLines)
+          .innerJoin(customers, eq(customerStatementLines.customerId, customers.id))
+          .where(and(
+            eq(customers.companyId, companyId),
+            eq(customerStatementLines.lineType, 'REVENUE')
+          ));
+        
+        return Number(totalCost[0]?.total || 0);
+      }
+      
+      return total;
+    } catch (error) {
+      console.error('Error in getTotalCost:', error);
+      return 0;
+    }
+  }
+
+  async getTotalPayable(companyId: number): Promise<number> {
+    try {
+      // Get total unpaid bills
+      const unpaidBills = await db
+        .select({ 
+          total: sql<number>`COALESCE(SUM(CAST(${bills.amount} AS NUMERIC)), 0)` 
+        })
+        .from(bills)
+        .where(and(
+          eq(bills.companyId, companyId),
+          eq(bills.status, 'PENDING')
+        ));
+
+      // Get vendor balances with opening balances
+      const vendorBalances = await db
+        .select({
+          vendorId: vendors.id,
+          openingBalance: vendors.openingBalance,
+          totalBills: sql<number>`
+            COALESCE(
+              (SELECT SUM(CAST(amount AS NUMERIC))
+               FROM ${bills}
+               WHERE vendor_id = ${vendors.id}
+              ), 0
+            )
+          `,
+          totalPaid: sql<number>`
+            COALESCE(
+              (SELECT SUM(CAST(amount AS NUMERIC))
+               FROM ${bills}
+               WHERE vendor_id = ${vendors.id}
+                 AND status = 'PAID'
+              ), 0
+            )
+          `
+        })
+        .from(vendors)
+        .where(eq(vendors.companyId, companyId));
+
+      // Calculate total payable from vendor balances
+      const totalPayableFromVendors = vendorBalances.reduce((total, vendor) => {
+        const openingBalance = Number(vendor.openingBalance || 0);
+        const totalBills = Number(vendor.totalBills || 0);
+        const totalPaid = Number(vendor.totalPaid || 0);
+        const vendorBalance = openingBalance + totalBills - totalPaid;
+        return total + Math.max(0, vendorBalance); // Only positive balances owed
+      }, 0);
+
+      const unpaidBillsTotal = Number(unpaidBills[0]?.total || 0);
+
+      // Return the higher value to get the most accurate payable balance
+      return Math.max(unpaidBillsTotal, totalPayableFromVendors);
+    } catch (error) {
+      console.error('Error in getTotalPayable:', error);
       return 0;
     }
   }
