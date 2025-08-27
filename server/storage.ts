@@ -986,38 +986,51 @@ export class DatabaseStorage implements IStorage {
   async getDashboardMetrics(companyId: number): Promise<{
     totalRevenue: number;
     totalExpenses: number;
+    totalCost: number;
     outstandingBalance: number;
+    totalPayable: number;
     netProfit: number;
+    period: { startDate: string; endDate: string };
   }> {
-    // Get total revenue from invoices
-    const revenueResult = await db
-      .select({ total: sum(invoices.amount) })
-      .from(invoices)
-      .where(eq(invoices.companyId, companyId));
+    try {
+      // Use current month as default period
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-    // Get total expenses from bills
-    const expenseResult = await db
-      .select({ total: sum(bills.amount) })
-      .from(bills)
-      .where(eq(bills.companyId, companyId));
+      // Use the new calculation methods
+      const totalRevenue = await this.getTotalRevenue(companyId, startDate, endDate);
+      const totalExpenses = await this.getTotalExpenses(companyId, startDate, endDate);
+      const totalCost = await this.getTotalCost(companyId, startDate, endDate);
+      const outstandingBalance = await this.getOutstandingReceivables(companyId);
+      const totalPayable = await this.getTotalPayable(companyId);
+      const netProfit = totalRevenue - totalExpenses;
 
-    // Get outstanding balance from unpaid invoices
-    const outstandingResult = await db
-      .select({ total: sum(invoices.amount) })
-      .from(invoices)
-      .where(and(eq(invoices.companyId, companyId), eq(invoices.status, 'PENDING')));
-
-    const totalRevenue = Number(revenueResult[0]?.total || 0);
-    const totalExpenses = Number(expenseResult[0]?.total || 0);
-    const outstandingBalance = Number(outstandingResult[0]?.total || 0);
-    const netProfit = totalRevenue - totalExpenses;
-
-    return {
-      totalRevenue,
-      totalExpenses,
-      outstandingBalance,
-      netProfit,
-    };
+      return {
+        totalRevenue,
+        totalExpenses,
+        totalCost,
+        outstandingBalance,
+        totalPayable,
+        netProfit,
+        period: { startDate, endDate }
+      };
+    } catch (error) {
+      console.error('Error in getDashboardMetrics:', error);
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      return {
+        totalRevenue: 0,
+        totalExpenses: 0,
+        totalCost: 0,
+        outstandingBalance: 0,
+        totalPayable: 0,
+        netProfit: 0,
+        period: { startDate, endDate }
+      };
+    }
   }
 
   // Outstanding customers
