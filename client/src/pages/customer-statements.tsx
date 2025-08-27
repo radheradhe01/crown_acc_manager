@@ -504,8 +504,7 @@ export default function CustomerStatements() {
                   <TableHead>Payment Terms</TableHead>
                   <TableHead className="text-right">Receivables</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
-                  <TableHead className="text-right">Total Balance</TableHead>
+                  <TableHead className="text-right">Closing Balance</TableHead>
                   <TableHead>Last Invoice</TableHead>
                 </TableRow>
               </TableHeader>
@@ -555,14 +554,6 @@ export default function CustomerStatements() {
                       <span className="text-blue-600">
                         ${customer.paidAmount.toLocaleString()}
                       </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {getBalanceIcon(customer.outstandingBalance)}
-                        <span className={getBalanceColor(customer.outstandingBalance)}>
-                          ${customer.outstandingBalance.toLocaleString()}
-                        </span>
-                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
