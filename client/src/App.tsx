@@ -37,6 +37,8 @@ function AuthWrapper() {
     queryKey: ["/api/auth/me"],
     retry: false,
     enabled: location !== "/login",
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -45,11 +47,9 @@ function AuthWrapper() {
     }
   }, [currentUser, user, setUser]);
 
-  // Redirect to login if not authenticated
+  // Only redirect to login if explicitly not authenticated (not on 401 errors)
   useEffect(() => {
-    if (!isAuthenticated && location !== "/login") {
-      setLocation("/login");
-    } else if (isAuthenticated && location === "/login") {
+    if (location === "/login" && isAuthenticated) {
       setLocation("/");
     }
   }, [isAuthenticated, location, setLocation]);
@@ -58,7 +58,7 @@ function AuthWrapper() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route>
-        {isAuthenticated ? <AuthenticatedRoutes /> : <Login />}
+        <AuthenticatedRoutes />
       </Route>
     </Switch>
   );

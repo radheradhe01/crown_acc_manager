@@ -24,8 +24,6 @@ export async function apiRequest(
   });
 
   if (res.status === 401) {
-    // Redirect to login on 401
-    window.location.href = "/login";
     throw new Error("Authentication required");
   }
 
@@ -47,8 +45,6 @@ export const getQueryFn: <T>(options: {
       if (unauthorizedBehavior === "returnNull") {
         return null;
       }
-      // Redirect to login on 401
-      window.location.href = "/login";
       throw new Error("Authentication required");
     }
 
