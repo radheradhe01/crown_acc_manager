@@ -23,7 +23,7 @@ export default function Expenses() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseTransaction | undefined>();
   const [filterType, setFilterType] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<string>("12_months");
+  const [dateRange, setDateRange] = useState<string>("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [currentView, setCurrentView] = useState<"summary" | "category-details">("summary");
   const queryClient = useQueryClient();
@@ -64,10 +64,27 @@ export default function Expenses() {
     // Date filter logic
     const expenseDate = new Date(expense.transactionDate);
     const now = new Date();
-    const monthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
     
-    if (dateRange === "12_months" && expenseDate < monthsAgo) {
-      return false;
+    if (dateRange === "12_months") {
+      const monthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
+      if (expenseDate < monthsAgo) {
+        return false;
+      }
+    } else if (dateRange === "6_months") {
+      const monthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      if (expenseDate < monthsAgo) {
+        return false;
+      }
+    } else if (dateRange === "3_months") {
+      const monthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      if (expenseDate < monthsAgo) {
+        return false;
+      }
+    } else if (dateRange === "1_month") {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      if (expenseDate < monthStart) {
+        return false;
+      }
     }
     
     // Category filter for detail view
@@ -202,11 +219,11 @@ export default function Expenses() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
                   <SelectItem value="12_months">Last 12 Months</SelectItem>
                   <SelectItem value="6_months">Last 6 Months</SelectItem>
                   <SelectItem value="3_months">Last 3 Months</SelectItem>
                   <SelectItem value="1_month">This Month</SelectItem>
-                  <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
             </div>
