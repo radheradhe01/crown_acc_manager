@@ -2838,10 +2838,10 @@ export class DatabaseStorage implements IStorage {
           `,
           paidAmount: sql<number>`
             COALESCE(
-              (SELECT SUM(CAST(credit_amount AS NUMERIC))
+              (SELECT SUM(CAST(credit_amount AS NUMERIC) + CAST(debit_amount AS NUMERIC))
                FROM customer_statement_lines
                WHERE customer_id = customers.id
-                 AND line_type = 'BANK_TRANSACTION'
+                 AND line_type IN ('BANK_TRANSACTION', 'PAYMENT')
               ), 0
             )
           `,
