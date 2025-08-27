@@ -2918,19 +2918,37 @@ export class DatabaseStorage implements IStorage {
         .limit(limit)
         .offset(offset);
 
-      const processedCustomers = customerStatements.map(customer => {
+      const processedCustomers = await Promise.all(customerStatements.map(async customer => {
         const openingBalance = Number(customer.openingBalance || 0);
         const receivableAmount = Number(customer.receivableAmount || 0);
         const paidAmount = Number(customer.paidAmount || 0);
         const totalInvoiced = Number(customer.totalInvoiced || 0);
         const invoiceCount = Number(customer.invoiceCount || 0);
         
+        // Get total cost for this customer
+        const [costResult] = await db
+          .select({
+            totalCost: sql<number>`
+              COALESCE(
+                (SELECT SUM(CAST(cost AS NUMERIC))
+                 FROM customer_statement_lines
+                 WHERE customer_id = ${customer.id}
+                   AND line_type = 'REVENUE'
+                ), 0
+              )
+            `
+          })
+          .from(customers)
+          .where(eq(customers.id, customer.id));
+        
+        const totalCost = Number(costResult?.totalCost || 0);
+        
         // Calculate outstanding balance (receivables - what's been paid)
         const outstandingBalance = receivableAmount - paidAmount;
         
-        // Calculate total balance including opening balance
-        // If customers have overpaid or have credit balances, this becomes negative (payable)
-        const totalBalance = openingBalance + receivableAmount - paidAmount;
+        // Calculate total balance using proper formula: opening + revenue - cost - payments
+        // This matches the detailed statement calculation
+        const totalBalance = openingBalance + receivableAmount - totalCost - paidAmount;
         
         return {
           ...customer,
@@ -2942,7 +2960,7 @@ export class DatabaseStorage implements IStorage {
           outstandingBalance,
           totalBalance,
         };
-      });
+      }));
 
       return {
         customers: processedCustomers,
