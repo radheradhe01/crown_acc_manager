@@ -48,17 +48,19 @@ export class ReminderScheduler {
       const customerInvoices = invoices.filter(inv => 
         inv.customerId === customer.id && 
         inv.status === 'sent' &&
-        inv.amountDue > 0
+        parseFloat(inv.amount) > parseFloat(inv.paidAmount || '0')
       );
 
       if (customerInvoices.length === 0) continue;
 
-      const totalDue = customerInvoices.reduce((sum, inv) => sum + inv.amountDue, 0);
+      const totalDue = customerInvoices.reduce((sum, inv) => 
+        sum + (parseFloat(inv.amount) - parseFloat(inv.paidAmount || '0')), 0
+      );
       const oldestInvoice = customerInvoices.sort((a, b) => 
         new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
       )[0];
 
-      const daysOverdue = this.calculateDaysOverdue(oldestInvoice.dueDate);
+      const daysOverdue = this.calculateDaysOverdue(new Date(oldestInvoice.dueDate));
       
       reminderData.push({
         customer,

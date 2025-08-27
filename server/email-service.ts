@@ -16,7 +16,8 @@ export interface EmailTemplate {
 }
 
 export class EmailService {
-  private transporter;
+
+  private transporter: any;
 
   constructor() {
     this.transporter = createTransporter();

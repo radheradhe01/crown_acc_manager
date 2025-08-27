@@ -29,7 +29,7 @@ export default function PaymentReminders() {
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [emailConfigured, setEmailConfigured] = useState(false);
 
-  const { data: customersWithBalance = [], isLoading } = useQuery({
+  const { data: customersWithBalance = [], isLoading } = useQuery<CustomerWithBalance[]>({
     queryKey: ["/api/companies", currentCompany?.id, "customers-with-balance"],
     enabled: !!currentCompany?.id,
   });
@@ -95,7 +95,7 @@ export default function PaymentReminders() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedCustomers(customersWithBalance.map((c: CustomerWithBalance) => c.id));
+      setSelectedCustomers(customersWithBalance.map((c) => c.id));
     } else {
       setSelectedCustomers([]);
     }
@@ -114,7 +114,7 @@ export default function PaymentReminders() {
   };
 
   const handleSendAllReminders = () => {
-    sendRemindersMutation.mutate();
+    sendRemindersMutation.mutate(undefined);
   };
 
   const formatCurrency = (amount: number) => {
@@ -246,7 +246,7 @@ export default function PaymentReminders() {
               
               {/* Customer List */}
               <div className="space-y-3">
-                {customersWithBalance.map((customer: CustomerWithBalance) => (
+                {customersWithBalance.map((customer) => (
                   <div key={customer.id} className="flex items-center space-x-3 p-4 border rounded-lg">
                     <Checkbox
                       id={`customer-${customer.id}`}

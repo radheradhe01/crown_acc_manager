@@ -41,7 +41,7 @@ function AuthWrapper() {
 
   useEffect(() => {
     if (currentUser && !user) {
-      setUser(currentUser);
+      setUser(currentUser as any);
     }
   }, [currentUser, user, setUser]);
 

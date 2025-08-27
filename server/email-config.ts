@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 
 export function createTransporter() {
   // Google Workspace SMTP configuration
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
     secure: false, // Use STARTTLS
@@ -18,7 +18,7 @@ export function createTransporter() {
 
 // Alternative configuration for OAuth2 (more secure)
 export function createOAuth2Transporter() {
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       type: 'OAuth2',

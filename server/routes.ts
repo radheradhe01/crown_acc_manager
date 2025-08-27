@@ -170,11 +170,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const customerInvoices = invoices.filter(inv => 
               inv.customerId === customerId && 
               inv.status === 'sent' &&
-              inv.amountDue > 0
+              parseFloat(inv.amount) > parseFloat(inv.paidAmount || '0')
             );
             
             if (customerInvoices.length > 0) {
-              const totalDue = customerInvoices.reduce((sum, inv) => sum + inv.amountDue, 0);
+              const totalDue = customerInvoices.reduce((sum, inv) => 
+                sum + (parseFloat(inv.amount) - parseFloat(inv.paidAmount || '0')), 0
+              );
               const oldestInvoice = customerInvoices.sort((a, b) => 
                 new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
               )[0];
@@ -202,7 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await reminderScheduler.processPaymentReminders(companyId);
         res.json({ message: "Payment reminders processed for all customers" });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending payment reminders:", error);
       res.status(500).json({ message: "Failed to send payment reminders" });
     }
@@ -213,7 +215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { emailService } = await import('./email-service');
       const isConnected = await emailService.testEmailConnection();
       res.json({ connected: isConnected });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error testing email connection:", error);
       res.status(500).json({ message: "Failed to test email connection" });
     }
@@ -233,11 +235,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const customerInvoices = invoices.filter(inv => 
           inv.customerId === customer.id && 
           inv.status === 'sent' &&
-          inv.amountDue > 0
+          parseFloat(inv.amount) > parseFloat(inv.paidAmount || '0')
         );
         
         if (customerInvoices.length > 0) {
-          const totalDue = customerInvoices.reduce((sum, inv) => sum + inv.amountDue, 0);
+          const totalDue = customerInvoices.reduce((sum, inv) => 
+            sum + (parseFloat(inv.amount) - parseFloat(inv.paidAmount || '0')), 0
+          );
           const oldestInvoice = customerInvoices.sort((a, b) => 
             new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
           )[0];
@@ -257,7 +261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json(customersWithBalance);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching customers with balance:", error);
       res.status(500).json({ message: "Failed to fetch customers with outstanding balance" });
     }
