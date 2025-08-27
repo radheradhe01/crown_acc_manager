@@ -328,6 +328,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get current system SMTP configuration
+  app.get("/api/companies/:id/smtp-defaults", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      const company = await storage.getCompany(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+
+      // Return current system SMTP configuration if company doesn't have one
+      const defaults = {
+        smtpHost: company.smtpHost || process.env.GOOGLE_WORKSPACE_EMAIL?.split('@')[1]?.replace('gmail.com', 'smtp.gmail.com') || "smtp.gmail.com",
+        smtpPort: company.smtpPort || 587,
+        smtpUser: company.smtpUser || process.env.GOOGLE_WORKSPACE_EMAIL || "",
+        smtpPassword: company.smtpPassword || "", // Never send password in response
+        smtpSecure: company.smtpSecure || false,
+        smtpFromEmail: company.smtpFromEmail || process.env.SMTP_FROM_EMAIL || process.env.GOOGLE_WORKSPACE_EMAIL || "",
+        smtpFromName: company.smtpFromName || company.name || "",
+        hasSystemConfig: !!(process.env.GOOGLE_WORKSPACE_EMAIL && process.env.GOOGLE_WORKSPACE_APP_PASSWORD),
+        systemEmail: process.env.GOOGLE_WORKSPACE_EMAIL || null
+      };
+
+      res.json(defaults);
+    } catch (error: any) {
+      console.error("Error getting SMTP defaults:", error);
+      res.status(500).json({ message: "Failed to get SMTP defaults" });
+    }
+  });
+
   // Test SMTP connection for company
   app.post("/api/companies/:id/test-smtp", async (req, res) => {
     try {
@@ -338,21 +368,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Company not found" });
       }
 
-      if (!company.smtpHost || !company.smtpUser || !company.smtpPassword) {
+      // Use company config or fallback to system config
+      const smtpConfig = {
+        host: company.smtpHost || "smtp.gmail.com",
+        port: company.smtpPort || 587,
+        secure: company.smtpSecure || false,
+        auth: {
+          user: company.smtpUser || process.env.GOOGLE_WORKSPACE_EMAIL,
+          pass: company.smtpPassword || process.env.GOOGLE_WORKSPACE_APP_PASSWORD,
+        },
+      };
+
+      if (!smtpConfig.auth.user || !smtpConfig.auth.pass) {
         return res.status(400).json({ message: "SMTP configuration incomplete" });
       }
 
       // Test the SMTP connection
       const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransporter({
-        host: company.smtpHost,
-        port: company.smtpPort || 587,
-        secure: company.smtpSecure || false,
-        auth: {
-          user: company.smtpUser,
-          pass: company.smtpPassword,
-        },
-      });
+      const transporter = nodemailer.createTransporter(smtpConfig);
 
       await transporter.verify();
       res.json({ message: "SMTP connection successful" });

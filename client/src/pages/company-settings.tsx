@@ -43,6 +43,11 @@ export default function CompanySettings() {
     enabled: !!currentCompany?.id,
   });
 
+  const { data: smtpDefaults } = useQuery({
+    queryKey: [`/api/companies/${currentCompany?.id}/smtp-defaults`],
+    enabled: !!currentCompany?.id,
+  });
+
   const smtpForm = useForm<SmtpConfigData>({
     resolver: zodResolver(smtpConfigSchema),
     defaultValues: {
@@ -66,15 +71,15 @@ export default function CompanySettings() {
 
   // Set form values when company data loads
   React.useEffect(() => {
-    if (company) {
+    if (company && smtpDefaults) {
       smtpForm.reset({
-        smtpHost: company.smtpHost || "",
-        smtpPort: company.smtpPort || 587,
-        smtpUser: company.smtpUser || "",
-        smtpPassword: company.smtpPassword || "",
-        smtpSecure: company.smtpSecure || false,
-        smtpFromEmail: company.smtpFromEmail || "",
-        smtpFromName: company.smtpFromName || "",
+        smtpHost: company.smtpHost || smtpDefaults.smtpHost || "smtp.gmail.com",
+        smtpPort: company.smtpPort || smtpDefaults.smtpPort || 587,
+        smtpUser: company.smtpUser || smtpDefaults.smtpUser || "",
+        smtpPassword: company.smtpPassword || "", // Never pre-fill password
+        smtpSecure: company.smtpSecure || smtpDefaults.smtpSecure || false,
+        smtpFromEmail: company.smtpFromEmail || smtpDefaults.smtpFromEmail || "",
+        smtpFromName: company.smtpFromName || smtpDefaults.smtpFromName || "",
       });
 
       templateForm.reset({
@@ -82,7 +87,7 @@ export default function CompanySettings() {
         paymentReminderTemplate: company.paymentReminderTemplate || "Dear [CUSTOMER_NAME],\n\nWe hope this message finds you well. We wanted to remind you that you have an outstanding balance with us.\n\nAmount Due: $[AMOUNT_DUE]\nDue Date: [DUE_DATE]\n\nPlease remit payment at your earliest convenience. If you have already sent payment, please disregard this notice.\n\nThank you for your business.\n\nBest regards,\n[COMPANY_NAME]",
       });
     }
-  }, [company, smtpForm, templateForm]);
+  }, [company, smtpDefaults, smtpForm, templateForm]);
 
   const updateSmtpMutation = useMutation({
     mutationFn: (data: SmtpConfigData) =>
@@ -167,7 +172,12 @@ export default function CompanySettings() {
             <CardHeader>
               <CardTitle>SMTP Configuration</CardTitle>
               <CardDescription>
-                Configure your email server settings for sending payment reminders
+                Configure your email server settings for sending payment reminders.
+                {smtpDefaults?.hasSystemConfig && (
+                  <div className="mt-2 text-sm text-blue-600">
+                    System email configured: {smtpDefaults.systemEmail}
+                  </div>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -183,6 +193,9 @@ export default function CompanySettings() {
                           <FormControl>
                             <Input placeholder="smtp.gmail.com" {...field} />
                           </FormControl>
+                          <div className="text-xs text-muted-foreground">
+                            Common: smtp.gmail.com (Google), smtp.outlook.com (Microsoft)
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -216,6 +229,9 @@ export default function CompanySettings() {
                           <FormControl>
                             <Input placeholder="your-email@company.com" {...field} />
                           </FormControl>
+                          <div className="text-xs text-muted-foreground">
+                            Usually your full email address
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -230,6 +246,9 @@ export default function CompanySettings() {
                           <FormControl>
                             <Input type="password" placeholder="••••••••" {...field} />
                           </FormControl>
+                          <div className="text-xs text-muted-foreground">
+                            For Gmail: Use App Password, not your regular password
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
