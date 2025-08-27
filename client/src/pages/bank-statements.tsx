@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap, Users, Truck, Plus } from "lucide-react";
+import { Upload, FileText, CheckCircle, XCircle, Clock, List, Tag, DollarSign, Calendar, Lightbulb, Zap, Users, Truck, Plus, Edit, AlertCircle } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -131,9 +131,14 @@ export default function BankStatements() {
       
       <div className="space-y-6">
         <Tabs defaultValue="uploads" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="uploads">Statement Uploads</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="transactions">
+              Uncategorized ({transactions.filter(t => !t.customerId && !t.vendorId && !t.categoryId).length})
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed ({transactions.filter(t => t.customerId || t.vendorId || t.categoryId).length})
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="uploads" className="space-y-6">
@@ -209,8 +214,8 @@ export default function BankStatements() {
           <TabsContent value="transactions" className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Bank Statement Transactions</h2>
-                <p className="text-sm text-gray-600">Review and categorize imported bank transactions</p>
+                <h2 className="text-lg font-semibold text-gray-900">Uncategorized Transactions</h2>
+                <p className="text-sm text-gray-600">Review and categorize these bank transactions</p>
               </div>
             </div>
 
@@ -219,11 +224,11 @@ export default function BankStatements() {
                 <div className="p-8 text-center">
                   <p className="text-gray-500">Loading transactions...</p>
                 </div>
-              ) : transactions.length === 0 ? (
+              ) : transactions.filter(t => !t.customerId && !t.vendorId && !t.categoryId).length === 0 ? (
                 <div className="p-8 text-center">
-                  <List className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-gray-500 mb-4">No transactions found</p>
-                  <p className="text-sm text-gray-400">Upload bank statements to see transactions here</p>
+                  <CheckCircle className="mx-auto h-12 w-12 text-green-400 mb-4" />
+                  <p className="text-green-600 font-medium mb-2">All transactions categorized!</p>
+                  <p className="text-sm text-gray-400">Great job! All bank transactions have been properly categorized.</p>
                 </div>
               ) : (
                 <Table>
@@ -239,7 +244,7 @@ export default function BankStatements() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.map((transaction) => (
+                    {transactions.filter(t => !t.customerId && !t.vendorId && !t.categoryId).map((transaction) => (
                       <TableRow key={transaction.id}>
                         <TableCell>{formatDate(transaction.transactionDate)}</TableCell>
                         <TableCell className="max-w-xs truncate">{transaction.description}</TableCell>
@@ -287,6 +292,90 @@ export default function BankStatements() {
                           >
                             <Tag className="mr-2 h-4 w-4" />
                             Categorize
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="completed" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Completed Transactions</h2>
+                <p className="text-sm text-gray-600">Successfully categorized bank transactions</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              {isLoadingTransactions ? (
+                <div className="p-8 text-center">
+                  <p className="text-gray-500">Loading transactions...</p>
+                </div>
+              ) : transactions.filter(t => t.customerId || t.vendorId || t.categoryId).length === 0 ? (
+                <div className="p-8 text-center">
+                  <Tag className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <p className="text-gray-500 mb-4">No completed transactions yet</p>
+                  <p className="text-sm text-gray-400">Categorized transactions will appear here once you start categorizing</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Debit</TableHead>
+                      <TableHead>Credit</TableHead>
+                      <TableHead>Balance</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.filter(t => t.customerId || t.vendorId || t.categoryId).map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell>{formatDate(transaction.transactionDate)}</TableCell>
+                        <TableCell className="max-w-xs truncate">{transaction.description}</TableCell>
+                        <TableCell className="text-red-600">
+                          {transaction.debitAmount !== "0" && formatCurrency(parseFloat(transaction.debitAmount))}
+                        </TableCell>
+                        <TableCell className="text-green-600">
+                          {transaction.creditAmount !== "0" && formatCurrency(parseFloat(transaction.creditAmount))}
+                        </TableCell>
+                        <TableCell>{formatCurrency(parseFloat(transaction.runningBalance))}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col space-y-1">
+                            <div className="flex items-center space-x-2">
+                              {transaction.customerId ? (
+                                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  {customers.find(c => c.id === transaction.customerId)?.name || 'Customer'}
+                                </Badge>
+                              ) : transaction.vendorId ? (
+                                <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  {vendors.find(v => v.id === transaction.vendorId)?.name || 'Vendor'}
+                                </Badge>
+                              ) : transaction.categoryId ? (
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  {expenseCategories.find(c => c.id === transaction.categoryId)?.name || 'Category'}
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openCategorizationDialog(transaction)}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
                           </Button>
                         </TableCell>
                       </TableRow>
