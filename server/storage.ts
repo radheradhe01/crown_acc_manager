@@ -1804,20 +1804,23 @@ export class DatabaseStorage implements IStorage {
     const descriptionLower = description.toLowerCase();
     
     // Get all customers, vendors, and categories for the company
-    const [allCustomers, allVendors, allCategories] = await Promise.all([
+    const [allCustomers, allVendors, categoryResponse] = await Promise.all([
       this.getCustomers(companyId),
       this.getVendors(companyId),
       this.getExpenseCategories(companyId)
     ]);
 
+    // Extract categories array from paginated response
+    const allCategories = categoryResponse?.categories || [];
+
     // Filter customers based on name matching
-    const suggestedCustomers = allCustomers.filter(customer => 
+    const suggestedCustomers = (allCustomers || []).filter(customer => 
       customer.name.toLowerCase().includes(descriptionLower) ||
       descriptionLower.includes(customer.name.toLowerCase())
     );
 
     // Filter vendors based on name matching
-    const suggestedVendors = allVendors.filter(vendor => 
+    const suggestedVendors = (allVendors || []).filter(vendor => 
       vendor.name.toLowerCase().includes(descriptionLower) ||
       descriptionLower.includes(vendor.name.toLowerCase())
     );
