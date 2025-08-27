@@ -42,9 +42,15 @@ export default function OutstandingBalances() {
 
   const customers = customerStatementsData?.customers || [];
   
+  // Debug logging to see customer data
+  console.log('All customers data:', customers);
+  
   // Split customers into receivables (positive balance) and payables (negative balance)
   const receivableCustomers = customers.filter(customer => customer.totalBalance > 0);
   const payableCustomers = customers.filter(customer => customer.totalBalance < 0);
+  
+  console.log('Receivable customers:', receivableCustomers);
+  console.log('Payable customers:', payableCustomers);
   
   const totalReceivables = receivableCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0);
   const totalPayables = Math.abs(payableCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0));
