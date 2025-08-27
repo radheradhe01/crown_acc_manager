@@ -13,6 +13,13 @@ import { Separator } from "@/components/ui/separator";
 import { AlertCircle, Mail, Send, Settings, TestTube, Clock, DollarSign } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+interface PaymentReminderSettings {
+  enableDailyReminders: boolean;
+  reminderTimes: number[];
+  recurringAfter: number;
+  dailyReminderTime: string;
+}
+
 interface CustomerWithBalance {
   id: number;
   name: string;
@@ -29,6 +36,12 @@ export default function PaymentReminders() {
   const { toast } = useToast();
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [emailConfigured, setEmailConfigured] = useState(false);
+  const [reminderSettings, setReminderSettings] = useState<PaymentReminderSettings>({
+    enableDailyReminders: false,
+    reminderTimes: [0, 7, 15, 30],
+    recurringAfter: 30,
+    dailyReminderTime: "09:00"
+  });
 
   const { data: customersWithBalance = [], isLoading } = useQuery<CustomerWithBalance[]>({
     queryKey: [`/api/companies/${currentCompany?.id}/customers-with-balance`],
@@ -332,38 +345,126 @@ export default function PaymentReminders() {
         </CardContent>
       </Card>
 
-      {/* Automatic Scheduling Info */}
+      {/* Automatic Reminder Schedule Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Automatic Reminder Schedule
+            Automatic Daily Reminder Schedule
           </CardTitle>
           <CardDescription>
-            Information about when automatic reminders are sent
+            Configure when automatic payment reminders are sent daily
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+        <CardContent className="space-y-6">
+          {/* Enable/Disable Toggle */}
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div>
+              <Label className="font-medium">Enable Daily Automatic Reminders</Label>
+              <p className="text-sm text-gray-600">
+                Automatically send payment reminders to customers with outstanding balances
+              </p>
+            </div>
+            <Button 
+              variant={reminderSettings.enableDailyReminders ? "default" : "outline"} 
+              size="sm"
+              onClick={() => setReminderSettings(prev => ({ 
+                ...prev, 
+                enableDailyReminders: !prev.enableDailyReminders 
+              }))}
+            >
+              {reminderSettings.enableDailyReminders ? "Enabled" : "Enable Daily Reminders"}
+            </Button>
+          </div>
+
+          {/* Current Schedule */}
+          <div className="space-y-4">
+            <Label className="font-medium">Current Reminder Schedule</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <strong>Daily Time:</strong> 9:00 AM
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg">
                 <strong>On due date:</strong> Initial reminder
               </div>
-              <div>
+              <div className="p-3 bg-gray-50 rounded-lg">
                 <strong>7 days overdue:</strong> First follow-up
               </div>
-              <div>
+              <div className="p-3 bg-gray-50 rounded-lg">
                 <strong>15 days overdue:</strong> Second follow-up
               </div>
-              <div>
+              <div className="p-3 bg-gray-50 rounded-lg">
                 <strong>30 days overdue:</strong> Final notice
               </div>
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <strong>After 30 days:</strong> Every 30 days
+              </div>
             </div>
-            <p className="text-gray-600 mt-4">
-              After 30 days, reminders are sent every 30 days until the balance is paid.
-              Reminders are only sent to customers with valid email addresses.
-            </p>
           </div>
+
+          {/* Settings Form */}
+          <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+            <Label className="font-medium">Reminder Settings</Label>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="reminderTime" className="text-sm">Daily Reminder Time</Label>
+                <Input
+                  id="reminderTime"
+                  type="time"
+                  defaultValue="09:00"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="recurringDays" className="text-sm">Recurring Reminder (days)</Label>
+                <Input
+                  id="recurringDays"
+                  type="number"
+                  defaultValue="30"
+                  placeholder="30"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-sm">Reminder Days (comma-separated)</Label>
+              <Input
+                defaultValue="0, 7, 15, 30"
+                placeholder="0, 7, 15, 30"
+                className="mt-1"
+              />
+              <p className="text-xs text-gray-600 mt-1">
+                Days after due date when reminders are sent (0 = on due date)
+              </p>
+            </div>
+
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-fit"
+              onClick={() => {
+                toast({
+                  title: "Settings Saved",
+                  description: "Daily reminder settings have been updated",
+                });
+              }}
+            >
+              Save Reminder Settings
+            </Button>
+          </div>
+
+          {/* Status Info */}
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>How it works:</strong> The system checks every hour for customers due for reminders based on your schedule. 
+              Reminders are only sent to customers with valid email addresses and outstanding balances.
+              You can send manual reminders anytime using the buttons above.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
     </div>

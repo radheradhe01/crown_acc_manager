@@ -339,6 +339,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Payment reminder settings endpoints
+  app.get("/api/companies/:companyId/reminder-settings", requireAuth, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const { schedulerService } = await import('./reminder-scheduler');
+      const settings = await schedulerService.getReminderSettings(companyId);
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Error fetching reminder settings:", error);
+      res.status(500).json({ message: "Failed to fetch reminder settings" });
+    }
+  });
+
+  app.put("/api/companies/:companyId/reminder-settings", requireAuth, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const { schedulerService } = await import('./reminder-scheduler');
+      await schedulerService.updateReminderSettings(companyId, req.body);
+      res.json({ message: "Reminder settings updated successfully" });
+    } catch (error: any) {
+      console.error("Error updating reminder settings:", error);
+      res.status(500).json({ message: "Failed to update reminder settings" });
+    }
+  });
+
   app.get("/api/companies/:companyId/customers-with-balance", requireAuth, async (req, res) => {
     try {
       const companyId = parseInt(req.params.companyId);
