@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/layout/header";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Users, DollarSign } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { TrendingUp, TrendingDown, Users, DollarSign, Search } from "lucide-react";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { formatCurrency, formatDate } from "@/lib/accounting-utils";
 
@@ -34,6 +35,8 @@ interface CustomerStatementsResponse {
 
 export default function OutstandingBalances() {
   const { currentCompany } = useCurrentCompany();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("balance-desc");
 
   const { data: customerStatementsData, isLoading: loadingCustomers } = useQuery<CustomerStatementsResponse>({
     queryKey: [`/api/companies/${currentCompany?.id}/customer-statements`],
@@ -42,9 +45,38 @@ export default function OutstandingBalances() {
 
   const customers = customerStatementsData?.customers || [];
   
+  // Filter and sort customers
+  const filteredAndSortedCustomers = useMemo(() => {
+    let filteredCustomers = customers;
+    
+    // Apply search filter
+    if (searchTerm) {
+      filteredCustomers = customers.filter(customer =>
+        customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Apply sorting
+    return [...filteredCustomers].sort((a, b) => {
+      switch (sortBy) {
+        case 'balance-desc':
+          return Math.abs(b.totalBalance) - Math.abs(a.totalBalance);
+        case 'balance-asc':
+          return Math.abs(a.totalBalance) - Math.abs(b.totalBalance);
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        default:
+          return Math.abs(b.totalBalance) - Math.abs(a.totalBalance);
+      }
+    });
+  }, [customers, searchTerm, sortBy]);
+  
   // Split customers into receivables (positive balance) and payables (negative balance)
-  const receivableCustomers = customers.filter(customer => customer.totalBalance > 0);
-  const payableCustomers = customers.filter(customer => customer.totalBalance < 0);
+  const receivableCustomers = filteredAndSortedCustomers.filter(customer => customer.totalBalance > 0);
+  const payableCustomers = filteredAndSortedCustomers.filter(customer => customer.totalBalance < 0);
   
   const totalReceivables = receivableCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0);
   const totalPayables = Math.abs(payableCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0));
@@ -126,6 +158,30 @@ export default function OutstandingBalances() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Search and Sort Controls */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search customers..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-2 border rounded-md min-w-[180px]"
+          >
+            <option value="balance-desc">Highest Balance First</option>
+            <option value="balance-asc">Lowest Balance First</option>
+            <option value="name-asc">Name A-Z</option>
+            <option value="name-desc">Name Z-A</option>
+          </select>
         </div>
 
         <Tabs defaultValue="receivables" className="w-full">
