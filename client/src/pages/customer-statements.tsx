@@ -122,6 +122,7 @@ export default function CustomerStatements() {
   const totalCredits = filteredCustomers.reduce((sum, customer) => sum + customer.totalCredits, 0);
   const totalDebits = filteredCustomers.reduce((sum, customer) => sum + customer.totalDebits, 0);
   const totalClosingBalance = filteredCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0);
+  const totalPayable = Math.abs(filteredCustomers.reduce((sum, customer) => sum + (customer.totalBalance < 0 ? customer.totalBalance : 0), 0));
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -426,7 +427,7 @@ export default function CustomerStatements() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -479,6 +480,20 @@ export default function CustomerStatements() {
                 </p>
               </div>
               <DollarSign className="w-8 h-8 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Payable</p>
+                <p className="text-2xl font-bold text-red-600">
+                  ${totalPayable.toLocaleString()}
+                </p>
+              </div>
+              <TrendingDown className="w-8 h-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
