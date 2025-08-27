@@ -54,6 +54,17 @@ export const companies = pgTable("companies", {
   fiscalYearEnd: date("fiscal_year_end").notNull(),
   email: text("email"),
   phone: text("phone"),
+  // SMTP Configuration
+  smtpHost: text("smtp_host"),
+  smtpPort: integer("smtp_port").default(587),
+  smtpUser: text("smtp_user"),
+  smtpPassword: text("smtp_password"),
+  smtpSecure: boolean("smtp_secure").default(false),
+  smtpFromEmail: text("smtp_from_email"),
+  smtpFromName: text("smtp_from_name"),
+  // Payment Reminder Templates
+  paymentReminderSubject: text("payment_reminder_subject").default("Payment Reminder - Invoice Outstanding"),
+  paymentReminderTemplate: text("payment_reminder_template").default("Dear [CUSTOMER_NAME],\n\nWe hope this message finds you well. We wanted to remind you that you have an outstanding balance with us.\n\nAmount Due: $[AMOUNT_DUE]\nDue Date: [DUE_DATE]\n\nPlease remit payment at your earliest convenience. If you have already sent payment, please disregard this notice.\n\nThank you for your business.\n\nBest regards,\n[COMPANY_NAME]"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

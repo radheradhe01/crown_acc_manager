@@ -17,7 +17,9 @@ import {
   Shield,
   Tags,
   LogOut,
-  ChevronUp
+  ChevronUp,
+  Settings,
+  Mail
 } from "lucide-react";
 import { CompanySelector } from "../company-selector";
 import { cn } from "@/lib/utils";
@@ -44,8 +46,9 @@ const navigationItems = [
   { path: "/revenue", label: "Revenue", icon: DollarSign },
   { path: "/expenses", label: "Expenses", icon: Receipt },
   { path: "/customer-statements", label: "Customer Statements", icon: Users },
-  { path: "/payment-reminders", label: "Payment Reminders", icon: Receipt },
+  { path: "/payment-reminders", label: "Payment Reminders", icon: Mail },
   { path: "/categories", label: "Categories", icon: Tags },
+  { path: "/company-settings", label: "Company Settings", icon: Settings },
   { path: "/user-management", label: "User Management", icon: Shield },
 ];
 

@@ -140,6 +140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/me", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
       const { password: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error) {
@@ -309,6 +312,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating company:", error);
       res.status(400).json({ message: "Failed to update company" });
+    }
+  });
+
+  // PATCH endpoint for partial updates (used by company settings)
+  app.patch("/api/companies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateData = req.body;
+      const company = await storage.updateCompany(id, updateData);
+      res.json(company);
+    } catch (error) {
+      console.error("Error updating company:", error);
+      res.status(500).json({ message: "Failed to update company" });
+    }
+  });
+
+  // Test SMTP connection for company
+  app.post("/api/companies/:id/test-smtp", async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      const company = await storage.getCompany(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+
+      if (!company.smtpHost || !company.smtpUser || !company.smtpPassword) {
+        return res.status(400).json({ message: "SMTP configuration incomplete" });
+      }
+
+      // Test the SMTP connection
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransporter({
+        host: company.smtpHost,
+        port: company.smtpPort || 587,
+        secure: company.smtpSecure || false,
+        auth: {
+          user: company.smtpUser,
+          pass: company.smtpPassword,
+        },
+      });
+
+      await transporter.verify();
+      res.json({ message: "SMTP connection successful" });
+    } catch (error: any) {
+      console.error("SMTP test error:", error);
+      res.status(500).json({ message: "SMTP connection failed: " + error.message });
     }
   });
 
