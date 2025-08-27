@@ -33,7 +33,7 @@ const emailTemplateSchema = z.object({
 type SmtpConfigData = z.infer<typeof smtpConfigSchema>;
 type EmailTemplateData = z.infer<typeof emailTemplateSchema>;
 
-export default function CompanySettings() {
+function CompanySettings() {
   const { currentCompany } = useCurrentCompany();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("smtp");
@@ -73,18 +73,18 @@ export default function CompanySettings() {
   React.useEffect(() => {
     if (company && smtpDefaults) {
       smtpForm.reset({
-        smtpHost: company.smtpHost || smtpDefaults.smtpHost || "smtp.gmail.com",
-        smtpPort: company.smtpPort || smtpDefaults.smtpPort || 587,
-        smtpUser: company.smtpUser || smtpDefaults.smtpUser || "",
-        smtpPassword: company.smtpPassword || "", // Never pre-fill password
-        smtpSecure: company.smtpSecure || smtpDefaults.smtpSecure || false,
-        smtpFromEmail: company.smtpFromEmail || smtpDefaults.smtpFromEmail || "",
-        smtpFromName: company.smtpFromName || smtpDefaults.smtpFromName || "",
+        smtpHost: (company as any).smtpHost || (smtpDefaults as any).smtpHost || "smtp.gmail.com",
+        smtpPort: (company as any).smtpPort || (smtpDefaults as any).smtpPort || 587,
+        smtpUser: (company as any).smtpUser || (smtpDefaults as any).smtpUser || "",
+        smtpPassword: (company as any).smtpPassword || "", // Never pre-fill password
+        smtpSecure: (company as any).smtpSecure || (smtpDefaults as any).smtpSecure || false,
+        smtpFromEmail: (company as any).smtpFromEmail || (smtpDefaults as any).smtpFromEmail || "",
+        smtpFromName: (company as any).smtpFromName || (smtpDefaults as any).smtpFromName || "",
       });
 
       templateForm.reset({
-        paymentReminderSubject: company.paymentReminderSubject || "Payment Reminder - Invoice Outstanding",
-        paymentReminderTemplate: company.paymentReminderTemplate || "Dear [CUSTOMER_NAME],\n\nWe hope this message finds you well. We wanted to remind you that you have an outstanding balance with us.\n\nAmount Due: $[AMOUNT_DUE]\nDue Date: [DUE_DATE]\n\nPlease remit payment at your earliest convenience. If you have already sent payment, please disregard this notice.\n\nThank you for your business.\n\nBest regards,\n[COMPANY_NAME]",
+        paymentReminderSubject: (company as any).paymentReminderSubject || "Payment Reminder - Invoice Outstanding",
+        paymentReminderTemplate: (company as any).paymentReminderTemplate || "Dear [CUSTOMER_NAME],\n\nWe hope this message finds you well. We wanted to remind you that you have an outstanding balance with us.\n\nAmount Due: $[AMOUNT_DUE]\nDue Date: [DUE_DATE]\n\nPlease remit payment at your earliest convenience. If you have already sent payment, please disregard this notice.\n\nThank you for your business.\n\nBest regards,\n[COMPANY_NAME]",
       });
     }
   }, [company, smtpDefaults, smtpForm, templateForm]);
@@ -173,9 +173,9 @@ export default function CompanySettings() {
               <CardTitle>SMTP Configuration</CardTitle>
               <CardDescription>
                 Configure your email server settings for sending payment reminders.
-                {smtpDefaults?.hasSystemConfig && (
+                {(smtpDefaults as any)?.hasSystemConfig && (
                   <div className="mt-2 text-sm text-blue-600">
-                    System email configured: {smtpDefaults.systemEmail}
+                    System email configured: {(smtpDefaults as any).systemEmail}
                   </div>
                 )}
               </CardDescription>
@@ -381,3 +381,5 @@ export default function CompanySettings() {
     </div>
   );
 }
+
+export default CompanySettings;

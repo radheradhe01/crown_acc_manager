@@ -64,7 +64,7 @@ export const companies = pgTable("companies", {
   smtpFromName: text("smtp_from_name"),
   // Payment Reminder Templates
   paymentReminderSubject: text("payment_reminder_subject").default("Payment Reminder - Invoice Outstanding"),
-  paymentReminderTemplate: text("payment_reminder_template").default("Dear [CUSTOMER_NAME],\n\nWe hope this message finds you well. We wanted to remind you that you have an outstanding balance with us.\n\nAmount Due: $[AMOUNT_DUE]\nDue Date: [DUE_DATE]\n\nPlease remit payment at your earliest convenience. If you have already sent payment, please disregard this notice.\n\nThank you for your business.\n\nBest regards,\n[COMPANY_NAME]"),
+  paymentReminderTemplate: text("payment_reminder_template").default("Dear [CUSTOMER_NAME],\\n\\nWe hope this message finds you well. We wanted to remind you that you have an outstanding balance with us.\\n\\nAmount Due: $[AMOUNT_DUE]\\nDue Date: [DUE_DATE]\\n\\nPlease remit payment at your earliest convenience. If you have already sent payment, please disregard this notice.\\n\\nThank you for your business.\\n\\nBest regards,\\n[COMPANY_NAME]"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -608,7 +608,9 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true,
 export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertExpenseCategorySchema = createInsertSchema(expenseCategories).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBankStatementUploadSchema = createInsertSchema(bankStatementUploads).omit({ id: true, createdAt: true });
-export const insertBankStatementTransactionSchema = createInsertSchema(bankStatementTransactions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBankStatementTransactionSchema = createInsertSchema(bankStatementTransactions).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  isReconciled: z.boolean().optional(),
+});
 export const insertRevenueUploadSchema = createInsertSchema(revenueUploads).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCustomerStatementLineSchema = createInsertSchema(customerStatementLines).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true, updatedAt: true });
