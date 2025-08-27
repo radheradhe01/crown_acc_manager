@@ -78,7 +78,6 @@ export default function Dashboard() {
       {/* Header with Date Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 mt-1">Financial overview for {currentCompany.name}</p>
         </div>
         
