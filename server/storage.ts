@@ -2417,7 +2417,25 @@ export class DatabaseStorage implements IStorage {
           lte(customerStatementLines.lineDate, endDate)
         ));
 
-      return Number(statementRevenue[0]?.total || 0);
+      const total = Number(statementRevenue[0]?.total || 0);
+      
+      // If no revenue found for date range, return all revenue (not filtered by date)
+      if (total === 0) {
+        const totalRevenue = await db
+          .select({ 
+            total: sql<number>`COALESCE(SUM(CAST(${customerStatementLines.revenue} AS NUMERIC)), 0)` 
+          })
+          .from(customerStatementLines)
+          .innerJoin(customers, eq(customerStatementLines.customerId, customers.id))
+          .where(and(
+            eq(customers.companyId, companyId),
+            eq(customerStatementLines.lineType, 'REVENUE')
+          ));
+        
+        return Number(totalRevenue[0]?.total || 0);
+      }
+      
+      return total;
     } catch (error) {
       console.error('Error in getTotalRevenue:', error);
       return 0;

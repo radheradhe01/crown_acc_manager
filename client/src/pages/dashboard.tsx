@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export default function Dashboard() {
   const { currentCompany } = useCurrentCompany();
-  const [selectedPeriod, setSelectedPeriod] = useState("current-month");
+  const [selectedPeriod, setSelectedPeriod] = useState("current-year");
 
   if (!currentCompany) {
     return (
