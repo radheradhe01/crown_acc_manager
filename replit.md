@@ -146,6 +146,13 @@ This is a comprehensive accounting software solution built with a modern full-st
 
 ```
 Changelog:
+- August 27, 2025. Implemented comprehensive automated invoice generation system with recurring templates, scheduling, and email automation
+- August 27, 2025. Added recurring invoice templates with configurable frequency (weekly, monthly, quarterly, yearly)
+- August 27, 2025. Created automated job system for processing invoice generation and email sending
+- August 27, 2025. Built invoice automation service with smart scheduling and template-based generation
+- August 27, 2025. Added automated invoice page with full template management interface
+- August 27, 2025. Integrated company-specific SMTP settings for automated invoice emails
+- August 27, 2025. Created background scheduler service for processing recurring invoices every hour
 - July 13, 2025. Fixed categorization feature - EnhancedCategorySelector now handles paginated expense categories API response
 - July 13, 2025. Fixed company creation API request format and confirmed functionality working 
 - July 13, 2025. Resolved all remaining SQL syntax errors in analytics queries using proper column names

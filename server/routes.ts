@@ -152,6 +152,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Automated Invoice Generation Routes
+  app.get("/api/companies/:companyId/recurring-invoice-templates", requireAuth, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const templates = await storage.getRecurringInvoiceTemplates(companyId);
+      res.json(templates);
+    } catch (error: any) {
+      console.error("Error fetching recurring invoice templates:", error);
+      res.status(500).json({ message: "Failed to fetch recurring invoice templates" });
+    }
+  });
+
+  app.post("/api/companies/:companyId/recurring-invoice-templates", requireAuth, async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const template = await storage.createRecurringInvoiceTemplate({
+        ...req.body,
+        companyId
+      });
+      res.json(template);
+    } catch (error: any) {
+      console.error("Error creating recurring invoice template:", error);
+      res.status(500).json({ message: "Failed to create recurring invoice template" });
+    }
+  });
+
+  app.put("/api/companies/:companyId/recurring-invoice-templates/:templateId", requireAuth, async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.templateId);
+      const template = await storage.updateRecurringInvoiceTemplate(templateId, req.body);
+      res.json(template);
+    } catch (error: any) {
+      console.error("Error updating recurring invoice template:", error);
+      res.status(500).json({ message: "Failed to update recurring invoice template" });
+    }
+  });
+
+  app.delete("/api/companies/:companyId/recurring-invoice-templates/:templateId", requireAuth, async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.templateId);
+      await storage.deleteRecurringInvoiceTemplate(templateId);
+      res.json({ message: "Template deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting recurring invoice template:", error);
+      res.status(500).json({ message: "Failed to delete recurring invoice template" });
+    }
+  });
+
+  app.post("/api/companies/:companyId/recurring-invoice-templates/:templateId/generate", requireAuth, async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.templateId);
+      const { invoiceAutomationService } = await import('./invoice-automation');
+      
+      const invoiceId = await invoiceAutomationService.generateInvoiceFromTemplate(templateId);
+      if (invoiceId) {
+        res.json({ invoiceId, message: "Invoice generated successfully" });
+      } else {
+        res.status(400).json({ message: "Failed to generate invoice from template" });
+      }
+    } catch (error: any) {
+      console.error("Error generating invoice from template:", error);
+      res.status(500).json({ message: "Failed to generate invoice from template" });
+    }
+  });
+
+  app.post("/api/companies/:companyId/invoices/:invoiceId/send-email", requireAuth, async (req, res) => {
+    try {
+      const invoiceId = parseInt(req.params.invoiceId);
+      const { invoiceAutomationService } = await import('./invoice-automation');
+      
+      const success = await invoiceAutomationService.sendInvoiceEmail(invoiceId);
+      if (success) {
+        res.json({ message: "Invoice email sent successfully" });
+      } else {
+        res.status(400).json({ message: "Failed to send invoice email" });
+      }
+    } catch (error: any) {
+      console.error("Error sending invoice email:", error);
+      res.status(500).json({ message: "Failed to send invoice email" });
+    }
+  });
+
+  app.post("/api/automation/process-recurring-invoices", requireAuth, async (req, res) => {
+    try {
+      const { companyId } = req.body;
+      const { invoiceAutomationService } = await import('./invoice-automation');
+      
+      await invoiceAutomationService.processRecurringInvoices(companyId);
+      res.json({ message: "Recurring invoices processed successfully" });
+    } catch (error: any) {
+      console.error("Error processing recurring invoices:", error);
+      res.status(500).json({ message: "Failed to process recurring invoices" });
+    }
+  });
+
+  app.post("/api/automation/process-email-jobs", requireAuth, async (req, res) => {
+    try {
+      const { companyId } = req.body;
+      const { invoiceAutomationService } = await import('./invoice-automation');
+      
+      await invoiceAutomationService.processPendingEmailJobs(companyId);
+      res.json({ message: "Email jobs processed successfully" });
+    } catch (error: any) {
+      console.error("Error processing email jobs:", error);
+      res.status(500).json({ message: "Failed to process email jobs" });
+    }
+  });
+
   // Email and reminder routes
   app.post("/api/companies/:companyId/payment-reminders/send", requireAuth, async (req, res) => {
     try {

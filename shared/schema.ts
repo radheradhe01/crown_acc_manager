@@ -172,8 +172,58 @@ export const invoices = pgTable("invoices", {
   dueDate: date("due_date").notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   paidAmount: decimal("paid_amount", { precision: 10, scale: 2 }).default("0.00"),
-  status: text("status").notNull().default("PENDING"), // PENDING, PAID, OVERDUE, CANCELLED
+  status: text("status").notNull().default("draft"), // draft, sent, paid, overdue, cancelled
   notes: text("notes"),
+  lineItems: jsonb("line_items").default([]), // Array of line items {description, quantity, rate, amount}
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0.00"),
+  taxAmount: decimal("tax_amount", { precision: 10, scale: 2 }).default("0.00"),
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+  emailSent: boolean("email_sent").default(false),
+  emailSentAt: timestamp("email_sent_at"),
+  recurringTemplateId: integer("recurring_template_id").references(() => recurringInvoiceTemplates.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Recurring Invoice Templates table
+export const recurringInvoiceTemplates = pgTable("recurring_invoice_templates", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  customerId: integer("customer_id").references(() => customers.id).notNull(),
+  templateName: text("template_name").notNull(),
+  description: text("description"),
+  lineItems: jsonb("line_items").notNull().default([]), // Array of line items
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0.00"),
+  taxAmount: decimal("tax_amount", { precision: 10, scale: 2 }).default("0.00"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  frequency: text("frequency").notNull(), // monthly, quarterly, yearly, weekly
+  paymentTerms: text("payment_terms").default("Net 30"),
+  isActive: boolean("is_active").default(true),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"), // null for indefinite
+  lastGeneratedDate: date("last_generated_date"),
+  nextGenerationDate: date("next_generation_date").notNull(),
+  autoSendEmail: boolean("auto_send_email").default(true),
+  emailSubject: text("email_subject"),
+  emailBody: text("email_body"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Automated Job Queue table
+export const automatedJobs = pgTable("automated_jobs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  jobType: text("job_type").notNull(), // generate_invoice, send_email, payment_reminder
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  processedAt: timestamp("processed_at"),
+  relatedId: integer("related_id"), // ID of related entity (template, invoice, etc.)
+  payload: jsonb("payload"), // Additional job data
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").default(0),
+  maxRetries: integer("max_retries").default(3),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -430,6 +480,29 @@ export const invoicesRelations = relations(invoices, ({ one }) => ({
     fields: [invoices.customerId],
     references: [customers.id],
   }),
+  recurringTemplate: one(recurringInvoiceTemplates, {
+    fields: [invoices.recurringTemplateId],
+    references: [recurringInvoiceTemplates.id],
+  }),
+}));
+
+export const recurringInvoiceTemplatesRelations = relations(recurringInvoiceTemplates, ({ one, many }) => ({
+  company: one(companies, {
+    fields: [recurringInvoiceTemplates.companyId],
+    references: [companies.id],
+  }),
+  customer: one(customers, {
+    fields: [recurringInvoiceTemplates.customerId],
+    references: [customers.id],
+  }),
+  invoices: many(invoices),
+}));
+
+export const automatedJobsRelations = relations(automatedJobs, ({ one }) => ({
+  company: one(companies, {
+    fields: [automatedJobs.companyId],
+    references: [companies.id],
+  }),
 }));
 
 export const billsRelations = relations(bills, ({ one }) => ({
@@ -605,6 +678,8 @@ export const insertBankAccountSchema = createInsertSchema(bankAccounts).omit({ i
 });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRecurringInvoiceTemplateSchema = createInsertSchema(recurringInvoiceTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAutomatedJobSchema = createInsertSchema(automatedJobs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertExpenseCategorySchema = createInsertSchema(expenseCategories).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBankStatementUploadSchema = createInsertSchema(bankStatementUploads).omit({ id: true, createdAt: true });
@@ -626,6 +701,8 @@ export type Vendor = typeof vendors.$inferSelect;
 export type BankAccount = typeof bankAccounts.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;
+export type RecurringInvoiceTemplate = typeof recurringInvoiceTemplates.$inferSelect;
+export type AutomatedJob = typeof automatedJobs.$inferSelect;
 export type Bill = typeof bills.$inferSelect;
 export type ExpenseCategory = typeof expenseCategories.$inferSelect;
 export type BankStatementUpload = typeof bankStatementUploads.$inferSelect;
@@ -647,6 +724,8 @@ export type InsertVendor = z.infer<typeof insertVendorSchema>;
 export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+export type InsertRecurringInvoiceTemplate = z.infer<typeof insertRecurringInvoiceTemplateSchema>;
+export type InsertAutomatedJob = z.infer<typeof insertAutomatedJobSchema>;
 export type InsertBill = z.infer<typeof insertBillSchema>;
 export type InsertExpenseCategory = z.infer<typeof insertExpenseCategorySchema>;
 export type InsertBankStatementUpload = z.infer<typeof insertBankStatementUploadSchema>;

@@ -26,6 +26,7 @@ import UserManagement from "@/pages/user-management";
 import Categories from "@/pages/categories";
 import Analytics from "@/pages/analytics";
 import PaymentReminders from "@/pages/payment-reminders";
+import AutomatedInvoices from "@/pages/automated-invoices";
 import CompanySettings from "@/pages/company-settings";
 import MainLayout from "@/components/layout/main-layout";
 
@@ -87,6 +88,7 @@ function AuthenticatedRoutes() {
         <Route path="/categories" component={Categories} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/payment-reminders" component={PaymentReminders} />
+        <Route path="/automated-invoices" component={AutomatedInvoices} />
         <Route path="/company-settings" component={CompanySettings} />
         <Route component={NotFound} />
       </Switch>

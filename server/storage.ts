@@ -20,6 +20,8 @@ import {
   rolePermissions,
   userRoleAssignments,
   userSessions,
+  recurringInvoiceTemplates,
+  automatedJobs,
   type Company,
   type Customer,
   type Vendor,
@@ -41,6 +43,8 @@ import {
   type RolePermission,
   type UserRoleAssignment,
   type UserSession,
+  type RecurringInvoiceTemplate,
+  type AutomatedJob,
   type InsertCompany,
   type InsertCustomer,
   type InsertVendor,
@@ -59,6 +63,8 @@ import {
   type InsertRolePermission,
   type InsertUserRoleAssignment,
   type InsertUserSession,
+  type InsertRecurringInvoiceTemplate,
+  type InsertAutomatedJob,
   type UpsertUser,
 } from "@shared/schema";
 import { db } from "./db";
@@ -104,9 +110,25 @@ export interface IStorage {
   // Invoices
   getInvoices(companyId: number): Promise<Invoice[]>;
   getInvoice(id: number): Promise<Invoice | undefined>;
-  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  createInvoice(invoice: InsertInvoice): Promise<number>;
   updateInvoice(id: number, invoice: Partial<InsertInvoice>): Promise<Invoice>;
   deleteInvoice(id: number): Promise<void>;
+  getInvoiceCountForYear(companyId: number, year: number): Promise<number>;
+
+  // Recurring Invoice Templates
+  getRecurringInvoiceTemplates(companyId: number): Promise<RecurringInvoiceTemplate[]>;
+  getRecurringInvoiceTemplate(id: number): Promise<RecurringInvoiceTemplate | undefined>;
+  getRecurringInvoiceTemplatesDue(date: string, companyId?: number): Promise<RecurringInvoiceTemplate[]>;
+  createRecurringInvoiceTemplate(template: InsertRecurringInvoiceTemplate): Promise<RecurringInvoiceTemplate>;
+  updateRecurringInvoiceTemplate(id: number, template: Partial<InsertRecurringInvoiceTemplate>): Promise<RecurringInvoiceTemplate>;
+  deleteRecurringInvoiceTemplate(id: number): Promise<void>;
+
+  // Automated Jobs
+  getAutomatedJobs(companyId: number): Promise<AutomatedJob[]>;
+  getPendingEmailJobs(companyId?: number): Promise<AutomatedJob[]>;
+  createAutomatedJob(job: InsertAutomatedJob): Promise<AutomatedJob>;
+  updateAutomatedJob(id: number, job: Partial<InsertAutomatedJob>): Promise<AutomatedJob>;
+  deleteAutomatedJob(id: number): Promise<void>;
 
   // Bills
   getBills(companyId: number): Promise<Bill[]>;
@@ -478,9 +500,27 @@ export class DatabaseStorage implements IStorage {
     return invoice;
   }
 
-  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+  async createInvoice(invoice: InsertInvoice): Promise<number> {
     const [newInvoice] = await db.insert(invoices).values(invoice).returning();
-    return newInvoice;
+    return newInvoice.id;
+  }
+
+  async getInvoiceCountForYear(companyId: number, year: number): Promise<number> {
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.companyId, companyId),
+          gte(invoices.invoiceDate, startDate),
+          lte(invoices.invoiceDate, endDate)
+        )
+      );
+    
+    return result[0]?.count || 0;
   }
 
   async updateInvoice(id: number, invoice: Partial<InsertInvoice>): Promise<Invoice> {
@@ -494,6 +534,107 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInvoice(id: number): Promise<void> {
     await db.delete(invoices).where(eq(invoices.id, id));
+  }
+
+  // Recurring Invoice Templates
+  async getRecurringInvoiceTemplates(companyId: number): Promise<RecurringInvoiceTemplate[]> {
+    return await db
+      .select()
+      .from(recurringInvoiceTemplates)
+      .where(eq(recurringInvoiceTemplates.companyId, companyId))
+      .orderBy(desc(recurringInvoiceTemplates.createdAt));
+  }
+
+  async getRecurringInvoiceTemplate(id: number): Promise<RecurringInvoiceTemplate | undefined> {
+    const [template] = await db
+      .select()
+      .from(recurringInvoiceTemplates)
+      .where(eq(recurringInvoiceTemplates.id, id));
+    return template;
+  }
+
+  async getRecurringInvoiceTemplatesDue(date: string, companyId?: number): Promise<RecurringInvoiceTemplate[]> {
+    let query = db
+      .select()
+      .from(recurringInvoiceTemplates)
+      .where(
+        and(
+          eq(recurringInvoiceTemplates.isActive, true),
+          lte(recurringInvoiceTemplates.nextGenerationDate, date)
+        )
+      );
+
+    if (companyId) {
+      query = query.where(eq(recurringInvoiceTemplates.companyId, companyId));
+    }
+
+    return await query;
+  }
+
+  async createRecurringInvoiceTemplate(template: InsertRecurringInvoiceTemplate): Promise<RecurringInvoiceTemplate> {
+    const [newTemplate] = await db
+      .insert(recurringInvoiceTemplates)
+      .values(template)
+      .returning();
+    return newTemplate;
+  }
+
+  async updateRecurringInvoiceTemplate(id: number, template: Partial<InsertRecurringInvoiceTemplate>): Promise<RecurringInvoiceTemplate> {
+    const [updatedTemplate] = await db
+      .update(recurringInvoiceTemplates)
+      .set({ ...template, updatedAt: new Date() })
+      .where(eq(recurringInvoiceTemplates.id, id))
+      .returning();
+    return updatedTemplate;
+  }
+
+  async deleteRecurringInvoiceTemplate(id: number): Promise<void> {
+    await db.delete(recurringInvoiceTemplates).where(eq(recurringInvoiceTemplates.id, id));
+  }
+
+  // Automated Jobs
+  async getAutomatedJobs(companyId: number): Promise<AutomatedJob[]> {
+    return await db
+      .select()
+      .from(automatedJobs)
+      .where(eq(automatedJobs.companyId, companyId))
+      .orderBy(desc(automatedJobs.createdAt));
+  }
+
+  async getPendingEmailJobs(companyId?: number): Promise<AutomatedJob[]> {
+    let query = db
+      .select()
+      .from(automatedJobs)
+      .where(
+        and(
+          eq(automatedJobs.status, "pending"),
+          lte(automatedJobs.scheduledFor, new Date())
+        )
+      );
+
+    if (companyId) {
+      query = query.where(eq(automatedJobs.companyId, companyId));
+    }
+
+    return await query;
+  }
+
+  async createAutomatedJob(job: InsertAutomatedJob): Promise<AutomatedJob> {
+    const [newJob] = await db.insert(automatedJobs).values(job).returning();
+    return newJob;
+  }
+
+  async updateAutomatedJob(id: number, job: Partial<InsertAutomatedJob>): Promise<AutomatedJob> {
+    const [updatedJob] = await db
+      .update(automatedJobs)
+      .set({ ...job, updatedAt: new Date() })
+      .where(eq(automatedJobs.id, id))
+      .returning();
+    return updatedJob;
+  }
+
+  async deleteAutomatedJob(id: number): Promise<void> {
+    await db.delete(automatedJobs).where(eq(automatedJobs.id, id));
   }
 
   // Bills

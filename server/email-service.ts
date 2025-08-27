@@ -12,6 +12,14 @@ export interface PaymentReminderData {
   companyId: number;
 }
 
+export interface InvoiceEmailData {
+  invoice: any;
+  customer: Customer;
+  company: Company;
+  subject: string;
+  body: string;
+}
+
 export interface EmailTemplate {
   subject: string;
   html: string;
@@ -196,6 +204,35 @@ Accounts Receivable Team
     `.trim();
 
     return { subject, text, html };
+  }
+
+  async sendInvoiceEmail(data: InvoiceEmailData): Promise<boolean> {
+    try {
+      // Create transporter with company SMTP settings
+      const transporter = await this.createCompanyTransporter(data.company);
+      
+      const fromEmail = (data.company as any).smtpFromEmail || process.env.SMTP_FROM_EMAIL || process.env.GOOGLE_WORKSPACE_EMAIL || 'noreply@yourcompany.com';
+      const fromName = (data.company as any).smtpFromName || data.company.name || 'Accounts Team';
+      
+      // Create HTML version of the email body
+      const htmlBody = this.convertTextToHtml(data.body);
+      
+      const mailOptions = {
+        from: `${fromName} <${fromEmail}>`,
+        to: data.customer.email,
+        subject: data.subject,
+        text: data.body,
+        html: htmlBody,
+      };
+
+      console.log(`Sending invoice email to ${data.customer.email} for invoice ${data.invoice.invoiceNumber}`);
+      const result = await transporter.sendMail(mailOptions);
+      console.log('Invoice email sent:', result.messageId);
+      return true;
+    } catch (error) {
+      console.error('Failed to send invoice email:', error);
+      return false;
+    }
   }
 
   async testEmailConnection(): Promise<boolean> {

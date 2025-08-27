@@ -79,5 +79,10 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Start the automated invoice scheduler
+    import("./reminder-scheduler").then(({ schedulerService }) => {
+      schedulerService.start();
+    });
   });
 })();
