@@ -151,6 +151,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Email and reminder routes
+  app.post("/api/companies/:companyId/payment-reminders/send", requirePermission("customers", "write"), async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const { customerIds, message } = req.body;
+      
+      const { reminderScheduler } = await import('./reminder-scheduler');
+      
+      if (customerIds && customerIds.length > 0) {
+        // Send reminders to specific customers
+        const results = [];
+        for (const customerId of customerIds) {
+          const customer = await storage.getCustomer(customerId);
+          if (customer && customer.companyId === companyId) {
+            // Calculate balance due for this customer
+            const invoices = await storage.getInvoices(companyId);
+            const customerInvoices = invoices.filter(inv => 
+              inv.customerId === customerId && 
+              inv.status === 'sent' &&
+              inv.amountDue > 0
+            );
+            
+            if (customerInvoices.length > 0) {
+              const totalDue = customerInvoices.reduce((sum, inv) => sum + inv.amountDue, 0);
+              const oldestInvoice = customerInvoices.sort((a, b) => 
+                new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+              )[0];
+              
+              const today = new Date();
+              const dueDate = new Date(oldestInvoice.dueDate);
+              const daysOverdue = Math.max(0, Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+              
+              const { emailService } = await import('./email-service');
+              const success = await emailService.sendPaymentReminder({
+                customer,
+                balanceDue: totalDue,
+                daysOverdue,
+                invoiceNumbers: customerInvoices.map(inv => inv.invoiceNumber),
+                dueDate
+              });
+              
+              results.push({ customerId, customerName: customer.name, success });
+            }
+          }
+        }
+        res.json({ message: "Reminders processed", results });
+      } else {
+        // Send reminders to all customers with outstanding balances
+        await reminderScheduler.processPaymentReminders(companyId);
+        res.json({ message: "Payment reminders processed for all customers" });
+      }
+    } catch (error) {
+      console.error("Error sending payment reminders:", error);
+      res.status(500).json({ message: "Failed to send payment reminders" });
+    }
+  });
+
+  app.post("/api/email/test-connection", requirePermission("settings", "write"), async (req, res) => {
+    try {
+      const { emailService } = await import('./email-service');
+      const isConnected = await emailService.testEmailConnection();
+      res.json({ connected: isConnected });
+    } catch (error) {
+      console.error("Error testing email connection:", error);
+      res.status(500).json({ message: "Failed to test email connection" });
+    }
+  });
+
+  app.get("/api/companies/:companyId/customers-with-balance", requirePermission("customers", "read"), async (req, res) => {
+    try {
+      const companyId = parseInt(req.params.companyId);
+      const customers = await storage.getCustomers(companyId);
+      const invoices = await storage.getInvoices(companyId);
+      
+      const customersWithBalance = [];
+      
+      for (const customer of customers) {
+        if (!customer.email) continue; // Skip customers without email
+        
+        const customerInvoices = invoices.filter(inv => 
+          inv.customerId === customer.id && 
+          inv.status === 'sent' &&
+          inv.amountDue > 0
+        );
+        
+        if (customerInvoices.length > 0) {
+          const totalDue = customerInvoices.reduce((sum, inv) => sum + inv.amountDue, 0);
+          const oldestInvoice = customerInvoices.sort((a, b) => 
+            new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+          )[0];
+          
+          const today = new Date();
+          const dueDate = new Date(oldestInvoice.dueDate);
+          const daysOverdue = Math.max(0, Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+          
+          customersWithBalance.push({
+            ...customer,
+            balanceDue: totalDue,
+            daysOverdue,
+            invoiceCount: customerInvoices.length,
+            oldestDueDate: oldestInvoice.dueDate
+          });
+        }
+      }
+      
+      res.json(customersWithBalance);
+    } catch (error) {
+      console.error("Error fetching customers with balance:", error);
+      res.status(500).json({ message: "Failed to fetch customers with outstanding balance" });
+    }
+  });
+
   // Companies routes
   app.get("/api/companies", async (req, res) => {
     try {

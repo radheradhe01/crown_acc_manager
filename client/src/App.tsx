@@ -25,6 +25,7 @@ import BalanceSheet from "@/pages/reports/balance-sheet";
 import UserManagement from "@/pages/user-management";
 import Categories from "@/pages/categories";
 import Analytics from "@/pages/analytics";
+import PaymentReminders from "@/pages/payment-reminders";
 import MainLayout from "@/components/layout/main-layout";
 
 function AuthWrapper() {
@@ -84,6 +85,7 @@ function AuthenticatedRoutes() {
         <Route path="/user-management" component={UserManagement} />
         <Route path="/categories" component={Categories} />
         <Route path="/analytics" component={Analytics} />
+        <Route path="/payment-reminders" component={PaymentReminders} />
         <Route component={NotFound} />
       </Switch>
     </MainLayout>

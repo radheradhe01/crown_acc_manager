@@ -44,6 +44,7 @@ const navigationItems = [
   { path: "/revenue", label: "Revenue", icon: DollarSign },
   { path: "/expenses", label: "Expenses", icon: Receipt },
   { path: "/customer-statements", label: "Customer Statements", icon: Users },
+  { path: "/payment-reminders", label: "Payment Reminders", icon: Receipt },
   { path: "/categories", label: "Categories", icon: Tags },
   { path: "/user-management", label: "User Management", icon: Shield },
 ];
