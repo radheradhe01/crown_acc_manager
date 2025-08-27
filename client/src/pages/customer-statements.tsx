@@ -697,25 +697,25 @@ export default function CustomerStatements() {
           {/* Pagination */}
           <div className="flex items-center justify-between mt-6">
             <div className="text-sm text-gray-500">
-              Showing {((statementsData.currentPage - 1) * pageSize) + 1} to {Math.min(statementsData.currentPage * pageSize, statementsData.totalCount)} of {statementsData.totalCount} customers
+              Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredAndSortedCustomers.length)} of {filteredAndSortedCustomers.length} customers
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handlePageChange(statementsData.currentPage - 1)}
-                disabled={statementsData.currentPage <= 1}
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
               </Button>
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, statementsData.totalPages) }, (_, i) => {
+                {Array.from({ length: Math.min(5, Math.ceil(filteredAndSortedCustomers.length / pageSize)) }, (_, i) => {
                   const page = i + 1;
                   return (
                     <Button
                       key={page}
-                      variant={page === statementsData.currentPage ? "default" : "outline"}
+                      variant={page === currentPage ? "default" : "outline"}
                       size="sm"
                       onClick={() => handlePageChange(page)}
                     >
@@ -727,8 +727,8 @@ export default function CustomerStatements() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handlePageChange(statementsData.currentPage + 1)}
-                disabled={statementsData.currentPage >= statementsData.totalPages}
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= Math.ceil(filteredAndSortedCustomers.length / pageSize)}
               >
                 Next
                 <ChevronRight className="w-4 h-4" />

@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { TrendingUp, TrendingDown, Users, DollarSign, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, Users, DollarSign, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCurrentCompany } from "@/hooks/use-current-company";
 import { formatCurrency, formatDate } from "@/lib/accounting-utils";
 
@@ -37,6 +38,8 @@ export default function OutstandingBalances() {
   const { currentCompany } = useCurrentCompany();
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("balance-desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const { data: customerStatementsData, isLoading: loadingCustomers } = useQuery<CustomerStatementsResponse>({
     queryKey: [`/api/companies/${currentCompany?.id}/customer-statements`],
@@ -75,11 +78,24 @@ export default function OutstandingBalances() {
   }, [customers, searchTerm, sortBy]);
   
   // Split customers into receivables (positive balance) and payables (negative balance)
-  const receivableCustomers = filteredAndSortedCustomers.filter(customer => customer.totalBalance > 0);
-  const payableCustomers = filteredAndSortedCustomers.filter(customer => customer.totalBalance < 0);
+  const allReceivableCustomers = filteredAndSortedCustomers.filter(customer => customer.totalBalance > 0);
+  const allPayableCustomers = filteredAndSortedCustomers.filter(customer => customer.totalBalance < 0);
+
+  // Pagination logic
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const receivableCustomers = allReceivableCustomers.slice(startIndex, endIndex);
+  const payableCustomers = allPayableCustomers.slice(startIndex, endIndex);
   
-  const totalReceivables = receivableCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0);
-  const totalPayables = Math.abs(payableCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0));
+  const receivablesTotalPages = Math.ceil(allReceivableCustomers.length / pageSize);
+  const payablesTotalPages = Math.ceil(allPayableCustomers.length / pageSize);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+  
+  const totalReceivables = allReceivableCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0);
+  const totalPayables = Math.abs(allPayableCustomers.reduce((sum, customer) => sum + customer.totalBalance, 0));
 
   if (!currentCompany) {
     return (
@@ -140,7 +156,7 @@ export default function OutstandingBalances() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                {receivableCustomers.length}
+                {allReceivableCustomers.length}
               </div>
             </CardContent>
           </Card>
@@ -154,7 +170,7 @@ export default function OutstandingBalances() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600">
-                {payableCustomers.length}
+                {allPayableCustomers.length}
               </div>
             </CardContent>
           </Card>
@@ -181,6 +197,19 @@ export default function OutstandingBalances() {
             <option value="balance-asc">Lowest Balance First</option>
             <option value="name-asc">Name A-Z</option>
             <option value="name-desc">Name Z-A</option>
+          </select>
+          
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 border rounded-md"
+          >
+            <option value={10}>10 per page</option>
+            <option value={25}>25 per page</option>
+            <option value={50}>50 per page</option>
           </select>
         </div>
 
@@ -231,6 +260,50 @@ export default function OutstandingBalances() {
                     </TableBody>
                   </Table>
                 )}
+                
+                {/* Receivables Pagination */}
+                {receivableCustomers.length > 0 && (
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-gray-500">
+                      Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, allReceivableCustomers.length)} of {allReceivableCustomers.length} customers
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage <= 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, receivablesTotalPages) }, (_, i) => {
+                          const page = i + 1;
+                          return (
+                            <Button
+                              key={page}
+                              variant={page === currentPage ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handlePageChange(page)}
+                            >
+                              {page}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage >= receivablesTotalPages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -275,6 +348,50 @@ export default function OutstandingBalances() {
                       ))}
                     </TableBody>
                   </Table>
+                )}
+                
+                {/* Payables Pagination */}
+                {payableCustomers.length > 0 && (
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-gray-500">
+                      Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, allPayableCustomers.length)} of {allPayableCustomers.length} customers
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage <= 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, payablesTotalPages) }, (_, i) => {
+                          const page = i + 1;
+                          return (
+                            <Button
+                              key={page}
+                              variant={page === currentPage ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handlePageChange(page)}
+                            >
+                              {page}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage >= payablesTotalPages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
