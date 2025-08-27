@@ -417,7 +417,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             daysOverdue,
             invoiceCount,
             oldestDueDate,
-            hasEmail: !!customer.email // Flag to show if customer has email for sending reminders
+            hasEmail: !!customer.email, // Flag to show if customer has email for sending reminders
+            enablePaymentReminders: customer.enablePaymentReminders,
+            reminderDays: customer.reminderDays,
+            reminderFrequency: customer.reminderFrequency
           });
         }
       }

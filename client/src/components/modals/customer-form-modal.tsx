@@ -18,6 +18,9 @@ import { z } from "zod";
 
 const formSchema = insertCustomerSchema.extend({
   openingBalanceDate: z.string().optional(),
+  enablePaymentReminders: z.boolean().optional(),
+  reminderDays: z.string().optional(),
+  reminderFrequency: z.number().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -47,6 +50,9 @@ export function CustomerFormModal({ isOpen, onClose, customer }: CustomerFormMod
       paymentTerms: "Net 30",
       openingBalance: "0.00",
       openingBalanceDate: "",
+      enablePaymentReminders: true,
+      reminderDays: "0,7,15,30",
+      reminderFrequency: 30,
     },
   });
 

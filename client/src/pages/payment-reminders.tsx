@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { AlertCircle, Mail, Send, Settings, TestTube, Clock, DollarSign } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CustomerReminderSettingsModal } from "@/components/modals/customer-reminder-settings-modal";
 
 interface PaymentReminderSettings {
   enableDailyReminders: boolean;
@@ -29,12 +30,16 @@ interface CustomerWithBalance {
   invoiceCount: number;
   oldestDueDate: string;
   hasEmail?: boolean;
+  enablePaymentReminders?: boolean;
+  reminderDays?: string;
+  reminderFrequency?: number;
 }
 
 export default function PaymentReminders() {
   const { currentCompany } = useCurrentCompany();
   const { toast } = useToast();
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
+  const [settingsCustomer, setSettingsCustomer] = useState<CustomerWithBalance | null>(null);
   const [emailConfigured, setEmailConfigured] = useState(false);
   const [reminderSettings, setReminderSettings] = useState<PaymentReminderSettings>({
     enableDailyReminders: false,
@@ -99,6 +104,31 @@ export default function PaymentReminders() {
     },
   });
 
+  const toggleRemindersMutation = useMutation({
+    mutationFn: async ({ customerId, enabled }: { customerId: number, enabled: boolean }) => {
+      return apiRequest(`/api/customers/${customerId}`, {
+        method: "PUT",
+        body: { enablePaymentReminders: enabled },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Customer reminder settings updated",
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/companies/${currentCompany?.id}/customers-with-balance`] 
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update reminder settings",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSelectCustomer = (customerId: number, checked: boolean) => {
     if (checked) {
       setSelectedCustomers([...selectedCustomers, customerId]);
@@ -129,6 +159,10 @@ export default function PaymentReminders() {
 
   const handleSendAllReminders = () => {
     sendRemindersMutation.mutate(undefined);
+  };
+
+  const toggleCustomerReminders = (customerId: number, enabled: boolean) => {
+    toggleRemindersMutation.mutate({ customerId, enabled });
   };
 
   const formatCurrency = (amount: number) => {
@@ -315,23 +349,26 @@ export default function PaymentReminders() {
                       <div>
                         <Label className="text-sm text-gray-500">Reminders</Label>
                         <div className="flex items-center gap-1">
-                          <Badge variant="outline" className="text-xs">
-                            Auto: On
+                          <Badge 
+                            variant={customer.enablePaymentReminders ? "default" : "secondary"} 
+                            className="text-xs"
+                          >
+                            Auto: {customer.enablePaymentReminders ? "On" : "Off"}
                           </Badge>
                           <Button
                             variant="ghost"
                             size="sm"
                             className="text-xs h-6 px-2"
-                            onClick={() => {
-                              toast({
-                                title: "Customer Settings",
-                                description: "Edit customer to change reminder settings",
-                              });
-                            }}
+                            onClick={() => setSettingsCustomer(customer)}
                           >
                             Settings
                           </Button>
                         </div>
+                        {customer.reminderDays && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Days: {customer.reminderDays}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -489,6 +526,14 @@ export default function PaymentReminders() {
           </Alert>
         </CardContent>
       </Card>
+      {/* Customer Reminder Settings Modal */}
+      {settingsCustomer && (
+        <CustomerReminderSettingsModal
+          isOpen={!!settingsCustomer}
+          onClose={() => setSettingsCustomer(null)}
+          customer={settingsCustomer}
+        />
+      )}
     </div>
   );
 }
