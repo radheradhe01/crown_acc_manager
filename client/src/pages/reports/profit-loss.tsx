@@ -136,10 +136,22 @@ export default function ProfitLoss() {
                     Revenue
                   </h3>
                   <div className="pl-4 space-y-2">
-                    <div className="flex justify-between items-center py-2 border-b">
+                    <div className="flex justify-between items-center py-2">
                       <span>Total Revenue</span>
                       <span className="font-medium text-green-600">
                         {formatCurrency(report.revenue.totalRevenue)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-2">
+                      <span>Cost of Goods Sold</span>
+                      <span className="font-medium text-red-600">
+                        {formatCurrency(report.revenue.totalCost || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-t font-semibold">
+                      <span>Gross Profit</span>
+                      <span className="font-medium text-blue-600">
+                        {formatCurrency(report.revenue.grossProfit || (report.revenue.totalRevenue - (report.revenue.totalCost || 0)))}
                       </span>
                     </div>
                   </div>
@@ -185,12 +197,20 @@ export default function ProfitLoss() {
                 </div>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
                   <Card>
                     <CardContent className="p-4">
                       <div className="text-sm text-gray-600">Total Revenue</div>
                       <div className="text-2xl font-bold text-green-600">
                         {formatCurrency(report.revenue.totalRevenue)}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="text-sm text-gray-600">Cost of Goods</div>
+                      <div className="text-2xl font-bold text-red-600">
+                        {formatCurrency(report.revenue.totalCost || 0)}
                       </div>
                     </CardContent>
                   </Card>

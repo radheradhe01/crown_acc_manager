@@ -1268,18 +1268,19 @@ export class DatabaseStorage implements IStorage {
       const defaultStartDate = startDate || new Date(currentDate.getFullYear(), 0, 1).toISOString().split('T')[0];
       const defaultEndDate = endDate || currentDate.toISOString().split('T')[0];
 
-      // Get revenue from invoices (paid invoices)
+      // Get revenue and costs from customer statement lines (uploaded data)
       const revenueQuery = db
         .select({
-          totalRevenue: sql<number>`COALESCE(SUM(CAST(${invoices.amount} AS NUMERIC)), 0)`,
+          totalRevenue: sql<number>`COALESCE(SUM(CAST(${customerStatementLines.revenue} AS NUMERIC)), 0)`,
+          totalCost: sql<number>`COALESCE(SUM(CAST(${customerStatementLines.cost} AS NUMERIC)), 0)`,
         })
-        .from(invoices)
+        .from(customerStatementLines)
+        .innerJoin(customers, eq(customerStatementLines.customerId, customers.id))
         .where(
           and(
-            eq(invoices.companyId, companyId),
-            eq(invoices.status, 'PAID'),
-            gte(invoices.invoiceDate, defaultStartDate),
-            lte(invoices.invoiceDate, defaultEndDate)
+            eq(customers.companyId, companyId),
+            gte(customerStatementLines.lineDate, defaultStartDate),
+            lte(customerStatementLines.lineDate, defaultEndDate)
           )
         );
 
@@ -1320,8 +1321,10 @@ export class DatabaseStorage implements IStorage {
       const expenseCategoriesResult = await expenseCategoriesQuery;
 
       const totalRevenue = Number(revenueResult?.totalRevenue || 0);
+      const totalCost = Number(revenueResult?.totalCost || 0);
       const totalExpenses = Number(expenseResult?.totalExpenses || 0);
-      const netIncome = totalRevenue - totalExpenses;
+      const grossProfit = totalRevenue - totalCost;
+      const netIncome = grossProfit - totalExpenses;
 
       return {
         period: {
@@ -1330,6 +1333,8 @@ export class DatabaseStorage implements IStorage {
         },
         revenue: {
           totalRevenue,
+          totalCost,
+          grossProfit,
         },
         expenses: {
           totalExpenses,
@@ -1350,6 +1355,8 @@ export class DatabaseStorage implements IStorage {
         },
         revenue: {
           totalRevenue: 0,
+          totalCost: 0,
+          grossProfit: 0,
         },
         expenses: {
           totalExpenses: 0,
