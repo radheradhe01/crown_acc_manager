@@ -2859,7 +2859,7 @@ export class DatabaseStorage implements IStorage {
       const totalCount = Number(countResult?.count || 0);
       const totalPages = Math.ceil(totalCount / limit);
 
-      // Get customers with their receivable and payable amounts from customer_statement_lines
+      // Get customers with their revenue, cost, debit, and credit amounts from customer_statement_lines
       const customerStatements = await db
         .select({
           id: customers.id,
@@ -2868,7 +2868,7 @@ export class DatabaseStorage implements IStorage {
           phone: customers.phone,
           paymentTerms: customers.paymentTerms,
           openingBalance: customers.openingBalance,
-          receivableAmount: sql<number>`
+          totalRevenue: sql<number>`
             COALESCE(
               (SELECT SUM(CAST(revenue AS NUMERIC))
                FROM customer_statement_lines
@@ -2877,21 +2877,28 @@ export class DatabaseStorage implements IStorage {
               ), 0
             )
           `,
-          paidAmount: sql<number>`
+          totalCost: sql<number>`
             COALESCE(
-              (SELECT SUM(CAST(credit_amount AS NUMERIC) + CAST(debit_amount AS NUMERIC))
-               FROM customer_statement_lines
-               WHERE customer_id = customers.id
-                 AND line_type IN ('BANK_TRANSACTION', 'PAYMENT')
-              ), 0
-            )
-          `,
-          totalInvoiced: sql<number>`
-            COALESCE(
-              (SELECT SUM(CAST(revenue AS NUMERIC))
+              (SELECT SUM(CAST(cost AS NUMERIC))
                FROM customer_statement_lines
                WHERE customer_id = customers.id
                  AND line_type = 'REVENUE'
+              ), 0
+            )
+          `,
+          totalDebits: sql<number>`
+            COALESCE(
+              (SELECT SUM(CAST(debit_amount AS NUMERIC))
+               FROM customer_statement_lines
+               WHERE customer_id = customers.id
+              ), 0
+            )
+          `,
+          totalCredits: sql<number>`
+            COALESCE(
+              (SELECT SUM(CAST(credit_amount AS NUMERIC))
+               FROM customer_statement_lines
+               WHERE customer_id = customers.id
               ), 0
             )
           `,
@@ -2918,49 +2925,33 @@ export class DatabaseStorage implements IStorage {
         .limit(limit)
         .offset(offset);
 
-      const processedCustomers = await Promise.all(customerStatements.map(async customer => {
+      const processedCustomers = customerStatements.map(customer => {
         const openingBalance = Number(customer.openingBalance || 0);
-        const receivableAmount = Number(customer.receivableAmount || 0);
-        const paidAmount = Number(customer.paidAmount || 0);
-        const totalInvoiced = Number(customer.totalInvoiced || 0);
+        const totalRevenue = Number(customer.totalRevenue || 0);
+        const totalCost = Number(customer.totalCost || 0);
+        const totalDebits = Number(customer.totalDebits || 0);
+        const totalCredits = Number(customer.totalCredits || 0);
         const invoiceCount = Number(customer.invoiceCount || 0);
         
-        // Get total cost for this customer
-        const [costResult] = await db
-          .select({
-            totalCost: sql<number>`
-              COALESCE(
-                (SELECT SUM(CAST(cost AS NUMERIC))
-                 FROM customer_statement_lines
-                 WHERE customer_id = ${customer.id}
-                   AND line_type = 'REVENUE'
-                ), 0
-              )
-            `
-          })
-          .from(customers)
-          .where(eq(customers.id, customer.id));
+        // Calculate outstanding balance (revenue - cost - credits + debits)
+        const outstandingBalance = totalRevenue - totalCost - totalCredits + totalDebits;
         
-        const totalCost = Number(costResult?.totalCost || 0);
-        
-        // Calculate outstanding balance (receivables - what's been paid)
-        const outstandingBalance = receivableAmount - paidAmount;
-        
-        // Calculate total balance using proper formula: opening + revenue - cost - payments
+        // Calculate total balance using proper formula: opening + revenue - cost - credits + debits
         // This matches the detailed statement calculation
-        const totalBalance = openingBalance + receivableAmount - totalCost - paidAmount;
+        const totalBalance = openingBalance + totalRevenue - totalCost - totalCredits + totalDebits;
         
         return {
           ...customer,
           openingBalance,
-          receivableAmount,
-          paidAmount,
-          totalInvoiced,
+          totalRevenue,
+          totalCost,
+          totalDebits,
+          totalCredits,
           invoiceCount,
           outstandingBalance,
           totalBalance,
         };
-      }));
+      });
 
       return {
         customers: processedCustomers,

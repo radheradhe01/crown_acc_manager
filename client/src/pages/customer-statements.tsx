@@ -36,9 +36,10 @@ interface CustomerStatement {
   phone: string;
   paymentTerms: string;
   openingBalance: number;
-  receivableAmount: number;
-  paidAmount: number;
-  totalInvoiced: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalDebits: number;
+  totalCredits: number;
   invoiceCount: number;
   outstandingBalance: number;
   totalBalance: number;
@@ -293,7 +294,7 @@ export default function CustomerStatements() {
                 <div>
                   <p className="text-sm text-gray-600">Total Revenue</p>
                   <p className="text-xl font-bold text-green-600">
-                    ${customerDetails?.totalRevenue.toLocaleString() || selectedCustomer.receivableAmount.toLocaleString()}
+                    ${customerDetails?.totalRevenue.toLocaleString() || selectedCustomer.totalRevenue.toLocaleString()}
                   </p>
                 </div>
                 <TrendingUp className="w-6 h-6 text-green-600" />
@@ -502,8 +503,10 @@ export default function CustomerStatements() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Payment Terms</TableHead>
-                  <TableHead className="text-right">Receivables</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
+                  <TableHead className="text-right">Total Revenue</TableHead>
+                  <TableHead className="text-right">Total Cost</TableHead>
+                  <TableHead className="text-right">Total Debits</TableHead>
+                  <TableHead className="text-right">Total Credits</TableHead>
                   <TableHead className="text-right">Closing Balance</TableHead>
                   <TableHead>Last Invoice</TableHead>
                 </TableRow>
@@ -543,16 +546,23 @@ export default function CustomerStatements() {
                       <Badge variant="outline">{customer.paymentTerms}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {getBalanceIcon(customer.receivableAmount)}
-                        <span className={getBalanceColor(customer.receivableAmount)}>
-                          ${customer.receivableAmount.toLocaleString()}
-                        </span>
-                      </div>
+                      <span className="text-green-600">
+                        ${customer.totalRevenue.toLocaleString()}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="text-red-600">
+                        ${customer.totalCost.toLocaleString()}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="text-orange-600">
+                        ${customer.totalDebits.toLocaleString()}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="text-blue-600">
-                        ${customer.paidAmount.toLocaleString()}
+                        ${customer.totalCredits.toLocaleString()}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
