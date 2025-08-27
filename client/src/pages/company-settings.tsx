@@ -14,6 +14,17 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useCurrentCompany } from "@/hooks/use-current-company";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const companyProfileSchema = z.object({
+  name: z.string().min(1, "Company name is required"),
+  legalEntityType: z.string().min(1, "Legal entity type is required"),
+  taxId: z.string().min(1, "Tax ID is required"),
+  registeredAddress: z.string().min(1, "Registered address is required"),
+  email: z.string().email("Valid email is required").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  defaultCurrency: z.string().min(1, "Default currency is required"),
+});
 
 const smtpConfigSchema = z.object({
   smtpHost: z.string().optional(),
@@ -30,13 +41,14 @@ const emailTemplateSchema = z.object({
   paymentReminderTemplate: z.string().min(1, "Email template is required"),
 });
 
+type CompanyProfileData = z.infer<typeof companyProfileSchema>;
 type SmtpConfigData = z.infer<typeof smtpConfigSchema>;
 type EmailTemplateData = z.infer<typeof emailTemplateSchema>;
 
 function CompanySettings() {
   const { currentCompany } = useCurrentCompany();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("smtp");
+  const [activeTab, setActiveTab] = useState("profile");
 
   const { data: company, isLoading } = useQuery({
     queryKey: [`/api/companies/${currentCompany?.id}`],
@@ -46,6 +58,19 @@ function CompanySettings() {
   const { data: smtpDefaults } = useQuery({
     queryKey: [`/api/companies/${currentCompany?.id}/smtp-defaults`],
     enabled: !!currentCompany?.id,
+  });
+
+  const companyForm = useForm<CompanyProfileData>({
+    resolver: zodResolver(companyProfileSchema),
+    defaultValues: {
+      name: "",
+      legalEntityType: "",
+      taxId: "",
+      registeredAddress: "",
+      email: "",
+      phone: "",
+      defaultCurrency: "USD",
+    },
   });
 
   const smtpForm = useForm<SmtpConfigData>({
@@ -71,7 +96,27 @@ function CompanySettings() {
 
   // Set form values when company data loads
   React.useEffect(() => {
+    if (company) {
+      // Company profile form
+      companyForm.reset({
+        name: (company as any).name || "",
+        legalEntityType: (company as any).legalEntityType || "",
+        taxId: (company as any).taxId || "",
+        registeredAddress: (company as any).registeredAddress || "",
+        email: (company as any).email || "",
+        phone: (company as any).phone || "",
+        defaultCurrency: (company as any).defaultCurrency || "USD",
+      });
+
+      // Template form
+      templateForm.reset({
+        paymentReminderSubject: (company as any).paymentReminderSubject || "Payment Reminder - Invoice Outstanding",
+        paymentReminderTemplate: (company as any).paymentReminderTemplate || "Dear [CUSTOMER_NAME],\n\nWe hope this message finds you well. We wanted to remind you that you have an outstanding balance with us.\n\nAmount Due: $[AMOUNT_DUE]\nDue Date: [DUE_DATE]\n\nPlease remit payment at your earliest convenience. If you have already sent payment, please disregard this notice.\n\nThank you for your business.\n\nBest regards,\n[COMPANY_NAME]",
+      });
+    }
+
     if (company && smtpDefaults) {
+      // SMTP form
       smtpForm.reset({
         smtpHost: (company as any).smtpHost || (smtpDefaults as any).smtpHost || "smtp.gmail.com",
         smtpPort: (company as any).smtpPort || (smtpDefaults as any).smtpPort || 587,
@@ -81,13 +126,30 @@ function CompanySettings() {
         smtpFromEmail: (company as any).smtpFromEmail || (smtpDefaults as any).smtpFromEmail || "",
         smtpFromName: (company as any).smtpFromName || (smtpDefaults as any).smtpFromName || "",
       });
-
-      templateForm.reset({
-        paymentReminderSubject: (company as any).paymentReminderSubject || "Payment Reminder - Invoice Outstanding",
-        paymentReminderTemplate: (company as any).paymentReminderTemplate || "Dear [CUSTOMER_NAME],\n\nWe hope this message finds you well. We wanted to remind you that you have an outstanding balance with us.\n\nAmount Due: $[AMOUNT_DUE]\nDue Date: [DUE_DATE]\n\nPlease remit payment at your earliest convenience. If you have already sent payment, please disregard this notice.\n\nThank you for your business.\n\nBest regards,\n[COMPANY_NAME]",
-      });
     }
-  }, [company, smtpDefaults, smtpForm, templateForm]);
+  }, [company, smtpDefaults, companyForm, smtpForm, templateForm]);
+
+  const updateCompanyProfileMutation = useMutation({
+    mutationFn: (data: CompanyProfileData) =>
+      apiRequest(`/api/companies/${currentCompany?.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Company profile updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/companies/${currentCompany?.id}`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update company profile",
+        variant: "destructive",
+      });
+    },
+  });
 
   const updateSmtpMutation = useMutation({
     mutationFn: (data: SmtpConfigData) =>
@@ -144,6 +206,14 @@ function CompanySettings() {
     },
   });
 
+  const handleCompanyProfileSubmit = (data: CompanyProfileData) => {
+    updateCompanyProfileMutation.mutate(data);
+  };
+
+  const handleSmtpSubmit = (data: SmtpConfigData) => {
+    updateSmtpMutation.mutate(data);
+  };
+
   if (isLoading) {
     return <div>Loading company settings...</div>;
   }
@@ -163,9 +233,162 @@ function CompanySettings() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
+          <TabsTrigger value="profile">Company Profile</TabsTrigger>
           <TabsTrigger value="smtp">SMTP Configuration</TabsTrigger>
           <TabsTrigger value="templates">Email Templates</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="profile">
+          <Card>
+            <CardHeader>
+              <CardTitle>Company Profile</CardTitle>
+              <CardDescription>
+                Edit your company's basic information and settings.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...companyForm}>
+                <form onSubmit={companyForm.handleSubmit(handleCompanyProfileSubmit)} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={companyForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Company Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter company name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={companyForm.control}
+                      name="legalEntityType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Legal Entity Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select entity type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="LLC">LLC</SelectItem>
+                              <SelectItem value="Corporation">Corporation</SelectItem>
+                              <SelectItem value="Partnership">Partnership</SelectItem>
+                              <SelectItem value="Sole Proprietorship">Sole Proprietorship</SelectItem>
+                              <SelectItem value="S-Corp">S-Corp</SelectItem>
+                              <SelectItem value="C-Corp">C-Corp</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={companyForm.control}
+                      name="taxId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tax ID (EIN)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="XX-XXXXXXX" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={companyForm.control}
+                      name="defaultCurrency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Default Currency</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select currency" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="USD">USD - US Dollar</SelectItem>
+                              <SelectItem value="EUR">EUR - Euro</SelectItem>
+                              <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                              <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
+                              <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={companyForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Company Email</FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="company@example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={companyForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+1 (555) 123-4567" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={companyForm.control}
+                    name="registeredAddress"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Registered Address</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Enter full registered address"
+                            className="min-h-[80px]"
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="flex justify-end">
+                    <Button 
+                      type="submit" 
+                      disabled={updateCompanyProfileMutation.isPending}
+                    >
+                      {updateCompanyProfileMutation.isPending ? "Saving..." : "Save Company Profile"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="smtp">
           <Card>
@@ -182,7 +405,7 @@ function CompanySettings() {
             </CardHeader>
             <CardContent>
               <Form {...smtpForm}>
-                <form onSubmit={smtpForm.handleSubmit((data) => updateSmtpMutation.mutate(data))} className="space-y-4">
+                <form onSubmit={smtpForm.handleSubmit(handleSmtpSubmit)} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={smtpForm.control}
