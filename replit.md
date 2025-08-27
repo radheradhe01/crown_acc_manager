@@ -146,6 +146,13 @@ This is a comprehensive accounting software solution built with a modern full-st
 
 ```
 Changelog:
+- August 27, 2025. **COMPLETED COMPREHENSIVE CUSTOMER STATEMENTS OVERHAUL**
+  - Updated customer statements table to show Total Revenue, Total Cost, Total Debits, Total Credits, and Closing Balance
+  - Added comprehensive 6-card summary showing Total Revenue, Total Cost, Total Credits, Total Debits, Total Payable, and Net Balance
+  - Fixed all calculation formulas to use proper accounting logic: Opening + Revenue - Cost - Credits + Debits
+  - Replaced receivables/paid structure with detailed financial breakdown
+  - Enhanced Outstanding Balances page to show only Customer Name, Outstanding Balance, and Last Invoice Date
+  - Color-coded all financial metrics for quick visual identification (green=revenue, red=costs/payables, blue=credits, orange=debits)
 - August 27, 2025. Added Total Cost and Total Payable metrics to dashboard for comprehensive financial overview
 - August 27, 2025. Total Cost displays cost data from uploaded revenue sheets (cost column in customer statement lines)
 - August 27, 2025. Total Payable calculates from vendor bills and opening balances to show amounts owed
