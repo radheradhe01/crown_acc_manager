@@ -1,76 +1,78 @@
 #!/bin/bash
 
-# Safe update script - backs up database before updating the app
-# Usage: ./update-app.sh
+# Setup script for domain configuration with Dokploy Traefik
+# Run this on your VM after adding the DNS record in Cloudflare
 
-set -e  # Exit on error
+echo "Setting up domain: billing.crownitsolution.com"
+echo "Detecting Dokploy Traefik network..."
 
-BACKUP_DIR="/opt/AccountingMaster/backups"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/accountingmaster_backup_$TIMESTAMP.sql.gz"
+# Find Dokploy Traefik network (Dokploy typically uses specific network patterns)
+TRAEFIK_NETWORK=$(docker network ls | grep -E "(traefik|dokploy)" | awk '{print $2}' | head -1)
 
-echo "=========================================="
-echo "AccountingMaster - Safe Update Script"
-echo "=========================================="
-echo ""
+# If not found, check what network the dokploy-traefik container is on
+if [ -z "$TRAEFIK_NETWORK" ]; then
+    echo "Checking dokploy-traefik container networks..."
+    TRAEFIK_NETWORK=$(docker inspect dokploy-traefik 2>/dev/null | grep -A 10 "Networks" | grep -o '"[^"]*"' | head -1 | tr -d '"')
+fi
 
-# Create backup directory if it doesn't exist
-mkdir -p "$BACKUP_DIR"
+# Last resort: check all networks and find the one with traefik container
+if [ -z "$TRAEFIK_NETWORK" ]; then
+    echo "Scanning all networks for Traefik container..."
+    for net in $(docker network ls --format "{{.Name}}"); do
+        if docker network inspect "$net" 2>/dev/null | grep -q "dokploy-traefik"; then
+            TRAEFIK_NETWORK="$net"
+            break
+        fi
+    done
+fi
 
-# Step 1: Backup database
-echo "Step 1: Creating database backup..."
-if docker exec accountingmaster-db pg_dump -U accountingmaster accountingmaster 2>/dev/null | gzip > "$BACKUP_FILE"; then
-    BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
-    echo "✓ Backup created: $BACKUP_FILE ($BACKUP_SIZE)"
-else
-    echo "✗ Backup failed! Aborting update for safety."
+if [ -z "$TRAEFIK_NETWORK" ]; then
+    echo "Error: Could not find Dokploy Traefik network."
+    echo ""
+    echo "Available networks:"
+    docker network ls
+    echo ""
+    echo "Please manually find the network name and update docker-compose.yml:"
+    echo "1. Find network: docker network inspect <network-name> | grep dokploy-traefik"
+    echo "2. Update docker-compose.yml: replace 'traefik' with the actual network name"
     exit 1
 fi
 
-# Step 2: Verify backup
-echo ""
-echo "Step 2: Verifying backup..."
-if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
-    echo "✓ Backup file is valid"
-else
-    echo "✗ Backup file is invalid! Aborting update."
-    exit 1
-fi
+echo "Found Dokploy Traefik network: $TRAEFIK_NETWORK"
 
-# Step 3: Update app (database container stays running)
-echo ""
-echo "Step 3: Updating application..."
-echo "   (Database will continue running - no downtime)"
+# Update docker-compose.yml with correct network name
+# Update network reference in app service (line with "- traefik")
+sed -i "s/- traefik$/- $TRAEFIK_NETWORK/g" docker-compose.yml
 
-# Stop only the app container
-docker-compose stop app
+# Update network definition at the bottom (replace "traefik:" with actual network name)
+sed -i "s/^  traefik:$/  $TRAEFIK_NETWORK:/g" docker-compose.yml
 
-# Rebuild and start app
-if docker-compose up -d --build --no-deps app; then
-    echo "✓ Application updated successfully"
-else
-    echo "✗ Update failed! Restoring from backup..."
-    echo "   (Your data is safe - database was not touched)"
-    exit 1
-fi
+# Update traefik.docker.network label
+sed -i "s/traefik.docker.network=traefik/traefik.docker.network=$TRAEFIK_NETWORK/g" docker-compose.yml
 
-# Step 4: Cleanup old backups (keep last 7 days)
+echo "Updated docker-compose.yml with network: $TRAEFIK_NETWORK"
 echo ""
-echo "Step 4: Cleaning up old backups (keeping last 7 days)..."
-find "$BACKUP_DIR" -name "accountingmaster_backup_*.sql.gz" -mtime +7 -delete
-echo "✓ Cleanup complete"
+echo "Verifying changes..."
+grep -A 1 "networks:" docker-compose.yml | tail -2
 
-# Step 5: Show status
+# Restart services
+echo "Restarting services..."
+docker-compose down
+docker-compose up -d
+
 echo ""
-echo "=========================================="
-echo "Update Complete!"
-echo "=========================================="
+echo "Setup complete!"
 echo ""
-echo "Backup location: $BACKUP_FILE"
+echo "Next steps:"
+echo "1. Add A record in Cloudflare DNS:"
+echo "   Type: A"
+echo "   Name: billing"
+echo "   Content: $(curl -s ifconfig.me || echo 'YOUR_VM_IP')"
+echo "   Proxy: Enabled (orange cloud)"
 echo ""
-echo "Container status:"
-docker-compose ps
+echo "2. Wait 5-10 minutes for DNS propagation"
 echo ""
-echo "To view app logs: docker-compose logs -f app"
-echo "To restore from backup: ./restore-backup.sh $BACKUP_FILE"
+echo "3. Access your app at: https://billing.crownitsolution.com"
+echo ""
+echo "To check logs: docker-compose logs -f app"
 

@@ -31,63 +31,42 @@ import CompanySettings from "@/pages/company-settings";
 import MainLayout from "@/components/layout/main-layout";
 
 function AuthWrapper() {
-  const { user, setUser, logout } = useAuth();
+  const { user, setUser } = useAuth();
   const [location, setLocation] = useLocation();
 
-  // Check if user is authenticated on app start - always verify with server
-  const {
-    data: currentUser,
-    error: authError,
-    isLoading,
-    isFetched,
-  } = useQuery({
+  // Check if user is authenticated on app start
+  // 401 errors are handled globally in queryClient and will redirect to /login
+  const { data: currentUser, isLoading } = useQuery({
     queryKey: ["/api/auth/me"],
     retry: false,
     enabled: location !== "/login",
-    refetchOnMount: "always", // Always re-check auth on mount
-    refetchOnWindowFocus: true, // Re-check when window regains focus
-    staleTime: 0, // Always consider data stale to force fresh check
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   // Sync server auth state with client state
   useEffect(() => {
-    if (isFetched && location !== "/login") {
-      if (currentUser) {
-        // Valid session - update user if needed
-        if (!user || user.id !== (currentUser as any).id) {
-          setUser(currentUser as any);
-        }
-      } else if (authError || !currentUser) {
-        // Invalid/expired session - clear local auth state
-        logout();
-      }
+    if (currentUser && (!user || user.id !== (currentUser as any).id)) {
+      setUser(currentUser as any);
     }
-  }, [currentUser, authError, isFetched, user, setUser, logout, location]);
+  }, [currentUser, user, setUser]);
 
-  // Redirect to login if session is invalid
+  // Redirect authenticated users away from login page
   useEffect(() => {
-    if (location !== "/login" && isFetched && !isLoading) {
-      if (authError || !currentUser) {
-        setLocation("/login");
-      }
-    }
-  }, [authError, currentUser, isFetched, isLoading, location, setLocation]);
-
-  // Redirect authenticated users away from login page (only after server verification)
-  useEffect(() => {
-    if (location === "/login" && isFetched && currentUser) {
+    if (location === "/login" && currentUser) {
       setLocation("/dashboard");
     }
-  }, [currentUser, isFetched, location, setLocation]);
+  }, [currentUser, location, setLocation]);
 
   // Redirect root path to dashboard for authenticated users
   useEffect(() => {
-    if (location === "/" && isFetched && currentUser) {
+    if (location === "/" && currentUser) {
       setLocation("/dashboard");
     }
-  }, [currentUser, isFetched, location, setLocation]);
+  }, [currentUser, location, setLocation]);
 
-  // Show loading state while checking authentication
+  // Show loading state while checking authentication (except on login page)
   if (location !== "/login" && isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">

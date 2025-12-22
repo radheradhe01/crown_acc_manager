@@ -7,15 +7,29 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Global function to handle 401 errors - will redirect to login
+function handleUnauthorized() {
+  // Clear auth storage
+  localStorage.removeItem("auth-storage");
+
+  // Clear all query cache
+  queryClient.clear();
+
+  // Redirect to login if not already there
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+}
+
 export async function apiRequest(
   url: string,
   options: {
     method?: string;
     body?: unknown;
-  } = {}
+  } = {},
 ): Promise<any> {
   const { method = "GET", body } = options;
-  
+
   const res = await fetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : {},
@@ -24,6 +38,7 @@ export async function apiRequest(
   });
 
   if (res.status === 401) {
+    handleUnauthorized();
     throw new Error("Authentication required");
   }
 
@@ -31,7 +46,8 @@ export async function apiRequest(
   return await res.json();
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
+type UnauthorizedBehavior = "returnNull" | "throw" | "redirect";
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
@@ -45,6 +61,12 @@ export const getQueryFn: <T>(options: {
       if (unauthorizedBehavior === "returnNull") {
         return null;
       }
+      if (unauthorizedBehavior === "redirect") {
+        handleUnauthorized();
+        return null;
+      }
+      // "throw" behavior
+      handleUnauthorized();
       throw new Error("Authentication required");
     }
 
@@ -52,19 +74,29 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
-
-
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
+      queryFn: getQueryFn({ on401: "redirect" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes instead of Infinity
+      retry: (failureCount, error) => {
+        // Don't retry on 401 errors
+        if (error instanceof Error && error.message.includes("401")) {
+          return false;
+        }
+        return failureCount < 2;
+      },
     },
     mutations: {
       retry: false,
+      onError: (error) => {
+        // Handle 401 errors in mutations
+        if (error instanceof Error && error.message.includes("401")) {
+          handleUnauthorized();
+        }
+      },
     },
   },
 });

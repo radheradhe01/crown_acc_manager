@@ -556,11 +556,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(customersWithBalance);
       } catch (error: any) {
         console.error("Error fetching customers with balance:", error);
-        res
-          .status(500)
-          .json({
-            message: "Failed to fetch customers with outstanding balance",
-          });
+        res.status(500).json({
+          message: "Failed to fetch customers with outstanding balance",
+        });
       }
     },
   );
@@ -883,12 +881,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error.issues) {
         console.error("Validation issues:", error.issues);
       }
-      res
-        .status(400)
-        .json({
-          message: "Failed to create bank account",
-          error: error.message,
-        });
+      res.status(400).json({
+        message: "Failed to create bank account",
+        error: error.message,
+      });
     }
   });
 
