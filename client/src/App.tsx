@@ -31,30 +31,73 @@ import CompanySettings from "@/pages/company-settings";
 import MainLayout from "@/components/layout/main-layout";
 
 function AuthWrapper() {
-  const { user, setUser, isAuthenticated } = useAuth();
+  const { user, setUser, logout } = useAuth();
   const [location, setLocation] = useLocation();
 
-  // Check if user is authenticated on app start
-  const { data: currentUser } = useQuery({
+  // Check if user is authenticated on app start - always verify with server
+  const {
+    data: currentUser,
+    error: authError,
+    isLoading,
+    isFetched,
+  } = useQuery({
     queryKey: ["/api/auth/me"],
     retry: false,
     enabled: location !== "/login",
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchOnMount: "always", // Always re-check auth on mount
+    refetchOnWindowFocus: true, // Re-check when window regains focus
+    staleTime: 0, // Always consider data stale to force fresh check
   });
 
+  // Sync server auth state with client state
   useEffect(() => {
-    if (currentUser && !user) {
-      setUser(currentUser as any);
+    if (isFetched && location !== "/login") {
+      if (currentUser) {
+        // Valid session - update user if needed
+        if (!user || user.id !== (currentUser as any).id) {
+          setUser(currentUser as any);
+        }
+      } else if (authError || !currentUser) {
+        // Invalid/expired session - clear local auth state
+        logout();
+      }
     }
-  }, [currentUser, user, setUser]);
+  }, [currentUser, authError, isFetched, user, setUser, logout, location]);
 
-  // Only redirect to login if explicitly not authenticated (not on 401 errors)
+  // Redirect to login if session is invalid
   useEffect(() => {
-    if (location === "/login" && isAuthenticated) {
-      setLocation("/");
+    if (location !== "/login" && isFetched && !isLoading) {
+      if (authError || !currentUser) {
+        setLocation("/login");
+      }
     }
-  }, [isAuthenticated, location, setLocation]);
+  }, [authError, currentUser, isFetched, isLoading, location, setLocation]);
+
+  // Redirect authenticated users away from login page (only after server verification)
+  useEffect(() => {
+    if (location === "/login" && isFetched && currentUser) {
+      setLocation("/dashboard");
+    }
+  }, [currentUser, isFetched, location, setLocation]);
+
+  // Redirect root path to dashboard for authenticated users
+  useEffect(() => {
+    if (location === "/" && isFetched && currentUser) {
+      setLocation("/dashboard");
+    }
+  }, [currentUser, isFetched, location, setLocation]);
+
+  // Show loading state while checking authentication
+  if (location !== "/login" && isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Switch>
@@ -70,7 +113,7 @@ function AuthenticatedRoutes() {
   return (
     <MainLayout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/dashboard" component={Dashboard} />
         <Route path="/customers" component={Customers} />
         <Route path="/vendors" component={Vendors} />
         <Route path="/bank-statements" component={BankStatements} />
@@ -78,10 +121,16 @@ function AuthenticatedRoutes() {
         <Route path="/revenue" component={Revenue} />
         <Route path="/expenses" component={Expenses} />
         <Route path="/customer-statements" component={CustomerStatements} />
-        <Route path="/reports/outstanding-balances" component={OutstandingBalances} />
+        <Route
+          path="/reports/outstanding-balances"
+          component={OutstandingBalances}
+        />
         <Route path="/reports/general-ledger" component={GeneralLedger} />
         <Route path="/reports/trial-balance" component={TrialBalance} />
-        <Route path="/reports/expense-categories" component={ExpenseCategories} />
+        <Route
+          path="/reports/expense-categories"
+          component={ExpenseCategories}
+        />
         <Route path="/reports/profit-loss" component={ProfitLoss} />
         <Route path="/reports/balance-sheet" component={BalanceSheet} />
         <Route path="/user-management" component={UserManagement} />

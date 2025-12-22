@@ -4,18 +4,24 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Trust proxy (Traefik)
+app.set('trust proxy', true);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Simple in-memory session for development
+// Session configuration
+const isProduction = app.get("env") === "production";
 app.use(session({
-  secret: 'dev-secret',
+  secret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
   cookie: { 
-    secure: false,
-    httpOnly: false,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    secure: isProduction, // Use secure cookies in production (HTTPS)
+    httpOnly: true, // Prevent XSS attacks
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: isProduction ? 'lax' : false // CSRF protection in production
   }
 }));
 
@@ -69,14 +75,12 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
+  // Serve the app on configured port or default to 5000
   // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
     

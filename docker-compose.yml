@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: accountingmaster-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: accountingmaster
+      POSTGRES_PASSWORD: accountingmaster_secret_pw
+      POSTGRES_DB: accountingmaster
+    volumes:
+      - accountingmaster_pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accountingmaster -d accountingmaster"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - accountingmaster-internal
+
+  app:
+    build: .
+    container_name: accountingmaster-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://accountingmaster:accountingmaster_secret_pw@db:5432/accountingmaster
+      PORT: 3001
+      NODE_ENV: production
+      SESSION_SECRET: ${SESSION_SECRET:-change-this-to-a-random-secret-key}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - accountingmaster-internal
+      - traefik
+    labels:
+      # Traefik configuration
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      
+      # HTTP to HTTPS redirect
+      - "traefik.http.routers.accountingmaster-http.rule=Host(`billing.crownitsolution.com`)"
+      - "traefik.http.routers.accountingmaster-http.entrypoints=web"
+      - "traefik.http.routers.accountingmaster-http.middlewares=redirect-to-https"
+      
+      # HTTPS router
+      - "traefik.http.routers.accountingmaster.rule=Host(`billing.crownitsolution.com`)"
+      - "traefik.http.routers.accountingmaster.entrypoints=websecure"
+      - "traefik.http.routers.accountingmaster.tls=true"
+      - "traefik.http.routers.accountingmaster.tls.certresolver=letsencrypt"
+      
+      # Service configuration
+      - "traefik.http.services.accountingmaster.loadbalancer.server.port=3001"
+      
+      # Middleware for HTTPS redirect
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+volumes:
+  accountingmaster_pgdata:
+
+networks:
+  accountingmaster-internal:
+    driver: bridge
+  traefik:
+    external: true
+

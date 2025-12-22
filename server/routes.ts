@@ -5,10 +5,10 @@ import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
-import { 
-  insertCompanySchema, 
-  insertCustomerSchema, 
-  insertVendorSchema, 
+import {
+  insertCompanySchema,
+  insertCustomerSchema,
+  insertVendorSchema,
   insertBankAccountSchema,
   insertTransactionSchema,
   insertInvoiceSchema,
@@ -21,31 +21,43 @@ import {
   insertUserRoleSchema,
   insertPermissionSchema,
   insertRolePermissionSchema,
-  insertUserRoleAssignmentSchema
+  insertUserRoleAssignmentSchema,
 } from "@shared/schema";
 
 // Extend session type to include user
-declare module 'express-session' {
+declare module "express-session" {
   interface SessionData {
     userId?: string;
   }
 }
 
-// Authentication middleware - temporarily bypassed for development
+// Authentication middleware - properly enforce authentication
 const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // For development, we'll check if user exists but not block requests
-    if (req.session.userId) {
-      const user = await storage.getUser(req.session.userId);
-      if (user && user.isActive) {
-        // Add user to request object
-        (req as any).user = user;
-      }
+    // Check if session has userId
+    if (!req.session.userId) {
+      return res.status(401).json({ message: "Authentication required" });
     }
-    next(); // Always proceed for now
+
+    // Verify user exists and is active
+    const user = await storage.getUser(req.session.userId);
+    if (!user) {
+      // Session has invalid userId, destroy it
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Session expired" });
+    }
+
+    if (!user.isActive) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Account is deactivated" });
+    }
+
+    // Add user to request object
+    (req as any).user = user;
+    next();
   } catch (error) {
     console.error("Authentication error:", error);
-    next(); // Still proceed even on error
+    return res.status(500).json({ message: "Authentication failed" });
   }
 };
 
@@ -59,14 +71,16 @@ const requirePermission = (resource: string, action: string) => {
       }
 
       const userId = req.session.userId;
-      const companyId = req.params.companyId ? parseInt(req.params.companyId) : undefined;
-      
+      const companyId = req.params.companyId
+        ? parseInt(req.params.companyId)
+        : undefined;
+
       // For now, we'll allow all authenticated users - in production, implement proper permission checking
       // const hasPermission = await storage.hasPermission(userId, resource, action, companyId);
       // if (!hasPermission) {
       //   return res.status(403).json({ message: "Insufficient permissions" });
       // }
-      
+
       next();
     } catch (error) {
       console.error("Permission check error:", error);
@@ -89,9 +103,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
-      
+
       if (!email || !password) {
-        return res.status(400).json({ message: "Email and password are required" });
+        return res
+          .status(400)
+          .json({ message: "Email and password are required" });
       }
 
       const user = await storage.getUserByEmail(email);
@@ -116,10 +132,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Remove password from response
       const { password: _, ...userWithoutPassword } = user;
-      
-      res.json({ 
-        message: "Login successful", 
-        user: userWithoutPassword 
+
+      res.json({
+        message: "Login successful",
+        user: userWithoutPassword,
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -153,184 +169,269 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Automated Invoice Generation Routes
-  app.get("/api/companies/:companyId/recurring-invoice-templates", requireAuth, async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const templates = await storage.getRecurringInvoiceTemplates(companyId);
-      res.json(templates);
-    } catch (error: any) {
-      console.error("Error fetching recurring invoice templates:", error);
-      res.status(500).json({ message: "Failed to fetch recurring invoice templates" });
-    }
-  });
-
-  app.post("/api/companies/:companyId/recurring-invoice-templates", requireAuth, async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const template = await storage.createRecurringInvoiceTemplate({
-        ...req.body,
-        companyId
-      });
-      res.json(template);
-    } catch (error: any) {
-      console.error("Error creating recurring invoice template:", error);
-      res.status(500).json({ message: "Failed to create recurring invoice template" });
-    }
-  });
-
-  app.put("/api/companies/:companyId/recurring-invoice-templates/:templateId", requireAuth, async (req, res) => {
-    try {
-      const templateId = parseInt(req.params.templateId);
-      const template = await storage.updateRecurringInvoiceTemplate(templateId, req.body);
-      res.json(template);
-    } catch (error: any) {
-      console.error("Error updating recurring invoice template:", error);
-      res.status(500).json({ message: "Failed to update recurring invoice template" });
-    }
-  });
-
-  app.delete("/api/companies/:companyId/recurring-invoice-templates/:templateId", requireAuth, async (req, res) => {
-    try {
-      const templateId = parseInt(req.params.templateId);
-      await storage.deleteRecurringInvoiceTemplate(templateId);
-      res.json({ message: "Template deleted successfully" });
-    } catch (error: any) {
-      console.error("Error deleting recurring invoice template:", error);
-      res.status(500).json({ message: "Failed to delete recurring invoice template" });
-    }
-  });
-
-  app.post("/api/companies/:companyId/recurring-invoice-templates/:templateId/generate", requireAuth, async (req, res) => {
-    try {
-      const templateId = parseInt(req.params.templateId);
-      const { invoiceAutomationService } = await import('./invoice-automation');
-      
-      const invoiceId = await invoiceAutomationService.generateInvoiceFromTemplate(templateId);
-      if (invoiceId) {
-        res.json({ invoiceId, message: "Invoice generated successfully" });
-      } else {
-        res.status(400).json({ message: "Failed to generate invoice from template" });
+  app.get(
+    "/api/companies/:companyId/recurring-invoice-templates",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const templates = await storage.getRecurringInvoiceTemplates(companyId);
+        res.json(templates);
+      } catch (error: any) {
+        console.error("Error fetching recurring invoice templates:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch recurring invoice templates" });
       }
-    } catch (error: any) {
-      console.error("Error generating invoice from template:", error);
-      res.status(500).json({ message: "Failed to generate invoice from template" });
-    }
-  });
+    },
+  );
 
-  app.post("/api/companies/:companyId/invoices/:invoiceId/send-email", requireAuth, async (req, res) => {
-    try {
-      const invoiceId = parseInt(req.params.invoiceId);
-      const { invoiceAutomationService } = await import('./invoice-automation');
-      
-      const success = await invoiceAutomationService.sendInvoiceEmail(invoiceId);
-      if (success) {
-        res.json({ message: "Invoice email sent successfully" });
-      } else {
-        res.status(400).json({ message: "Failed to send invoice email" });
+  app.post(
+    "/api/companies/:companyId/recurring-invoice-templates",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const template = await storage.createRecurringInvoiceTemplate({
+          ...req.body,
+          companyId,
+        });
+        res.json(template);
+      } catch (error: any) {
+        console.error("Error creating recurring invoice template:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to create recurring invoice template" });
       }
-    } catch (error: any) {
-      console.error("Error sending invoice email:", error);
-      res.status(500).json({ message: "Failed to send invoice email" });
-    }
-  });
+    },
+  );
 
-  app.post("/api/automation/process-recurring-invoices", requireAuth, async (req, res) => {
-    try {
-      const { companyId } = req.body;
-      const { invoiceAutomationService } = await import('./invoice-automation');
-      
-      await invoiceAutomationService.processRecurringInvoices(companyId);
-      res.json({ message: "Recurring invoices processed successfully" });
-    } catch (error: any) {
-      console.error("Error processing recurring invoices:", error);
-      res.status(500).json({ message: "Failed to process recurring invoices" });
-    }
-  });
+  app.put(
+    "/api/companies/:companyId/recurring-invoice-templates/:templateId",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const templateId = parseInt(req.params.templateId);
+        const template = await storage.updateRecurringInvoiceTemplate(
+          templateId,
+          req.body,
+        );
+        res.json(template);
+      } catch (error: any) {
+        console.error("Error updating recurring invoice template:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to update recurring invoice template" });
+      }
+    },
+  );
 
-  app.post("/api/automation/process-email-jobs", requireAuth, async (req, res) => {
-    try {
-      const { companyId } = req.body;
-      const { invoiceAutomationService } = await import('./invoice-automation');
-      
-      await invoiceAutomationService.processPendingEmailJobs(companyId);
-      res.json({ message: "Email jobs processed successfully" });
-    } catch (error: any) {
-      console.error("Error processing email jobs:", error);
-      res.status(500).json({ message: "Failed to process email jobs" });
-    }
-  });
+  app.delete(
+    "/api/companies/:companyId/recurring-invoice-templates/:templateId",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const templateId = parseInt(req.params.templateId);
+        await storage.deleteRecurringInvoiceTemplate(templateId);
+        res.json({ message: "Template deleted successfully" });
+      } catch (error: any) {
+        console.error("Error deleting recurring invoice template:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to delete recurring invoice template" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/companies/:companyId/recurring-invoice-templates/:templateId/generate",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const templateId = parseInt(req.params.templateId);
+        const { invoiceAutomationService } =
+          await import("./invoice-automation");
+
+        const invoiceId =
+          await invoiceAutomationService.generateInvoiceFromTemplate(
+            templateId,
+          );
+        if (invoiceId) {
+          res.json({ invoiceId, message: "Invoice generated successfully" });
+        } else {
+          res
+            .status(400)
+            .json({ message: "Failed to generate invoice from template" });
+        }
+      } catch (error: any) {
+        console.error("Error generating invoice from template:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to generate invoice from template" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/companies/:companyId/invoices/:invoiceId/send-email",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const invoiceId = parseInt(req.params.invoiceId);
+        const { invoiceAutomationService } =
+          await import("./invoice-automation");
+
+        const success =
+          await invoiceAutomationService.sendInvoiceEmail(invoiceId);
+        if (success) {
+          res.json({ message: "Invoice email sent successfully" });
+        } else {
+          res.status(400).json({ message: "Failed to send invoice email" });
+        }
+      } catch (error: any) {
+        console.error("Error sending invoice email:", error);
+        res.status(500).json({ message: "Failed to send invoice email" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/automation/process-recurring-invoices",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const { companyId } = req.body;
+        const { invoiceAutomationService } =
+          await import("./invoice-automation");
+
+        await invoiceAutomationService.processRecurringInvoices(companyId);
+        res.json({ message: "Recurring invoices processed successfully" });
+      } catch (error: any) {
+        console.error("Error processing recurring invoices:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to process recurring invoices" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/automation/process-email-jobs",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const { companyId } = req.body;
+        const { invoiceAutomationService } =
+          await import("./invoice-automation");
+
+        await invoiceAutomationService.processPendingEmailJobs(companyId);
+        res.json({ message: "Email jobs processed successfully" });
+      } catch (error: any) {
+        console.error("Error processing email jobs:", error);
+        res.status(500).json({ message: "Failed to process email jobs" });
+      }
+    },
+  );
 
   // Email and reminder routes
-  app.post("/api/companies/:companyId/payment-reminders/send", requireAuth, async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const { customerIds, message } = req.body;
-      
-      const { reminderScheduler } = await import('./reminder-scheduler');
-      
-      if (customerIds && customerIds.length > 0) {
-        // Send reminders to specific customers
-        const results = [];
-        for (const customerId of customerIds) {
-          const customer = await storage.getCustomer(customerId);
-          if (customer && customer.companyId === companyId && customer.email) {
-            // Calculate actual outstanding balance using customer statement summary
-            const customerSummary = await storage.getCustomerStatementSummary(companyId, customerId);
-            const totalDue = customerSummary.closingBalance;
-            
-            // Only send reminder if there's an outstanding balance
-            if (totalDue > 0) {
-              // Get unpaid invoices to include invoice numbers in reminder
-              const invoices = await storage.getInvoices(companyId);
-              const customerInvoices = invoices.filter(inv => 
-                inv.customerId === customerId && 
-                inv.status === 'sent' &&
-                parseFloat(inv.amount) > parseFloat(inv.paidAmount || '0')
+  app.post(
+    "/api/companies/:companyId/payment-reminders/send",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const { customerIds, message } = req.body;
+
+        const { reminderScheduler } = await import("./reminder-scheduler");
+
+        if (customerIds && customerIds.length > 0) {
+          // Send reminders to specific customers
+          const results = [];
+          for (const customerId of customerIds) {
+            const customer = await storage.getCustomer(customerId);
+            if (
+              customer &&
+              customer.companyId === companyId &&
+              customer.email
+            ) {
+              // Calculate actual outstanding balance using customer statement summary
+              const customerSummary = await storage.getCustomerStatementSummary(
+                companyId,
+                customerId,
               );
-              
-              // Calculate days overdue based on oldest unpaid invoice or use default
-              let daysOverdue = 0;
-              let oldestDueDate = new Date();
-              
-              if (customerInvoices.length > 0) {
-                const oldestInvoice = customerInvoices.sort((a, b) => 
-                  new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-                )[0];
-                
-                const today = new Date();
-                oldestDueDate = new Date(oldestInvoice.dueDate);
-                daysOverdue = Math.max(0, Math.ceil((today.getTime() - oldestDueDate.getTime()) / (1000 * 60 * 60 * 24)));
+              const totalDue = customerSummary.closingBalance;
+
+              // Only send reminder if there's an outstanding balance
+              if (totalDue > 0) {
+                // Get unpaid invoices to include invoice numbers in reminder
+                const invoices = await storage.getInvoices(companyId);
+                const customerInvoices = invoices.filter(
+                  (inv) =>
+                    inv.customerId === customerId &&
+                    inv.status === "sent" &&
+                    parseFloat(inv.amount) > parseFloat(inv.paidAmount || "0"),
+                );
+
+                // Calculate days overdue based on oldest unpaid invoice or use default
+                let daysOverdue = 0;
+                let oldestDueDate = new Date();
+
+                if (customerInvoices.length > 0) {
+                  const oldestInvoice = customerInvoices.sort(
+                    (a, b) =>
+                      new Date(a.dueDate).getTime() -
+                      new Date(b.dueDate).getTime(),
+                  )[0];
+
+                  const today = new Date();
+                  oldestDueDate = new Date(oldestInvoice.dueDate);
+                  daysOverdue = Math.max(
+                    0,
+                    Math.ceil(
+                      (today.getTime() - oldestDueDate.getTime()) /
+                        (1000 * 60 * 60 * 24),
+                    ),
+                  );
+                }
+
+                const { emailService } = await import("./email-service");
+                const success = await emailService.sendPaymentReminder({
+                  customer,
+                  balanceDue: totalDue,
+                  daysOverdue,
+                  invoiceNumbers: customerInvoices.map(
+                    (inv) => inv.invoiceNumber,
+                  ),
+                  dueDate: oldestDueDate,
+                  companyId,
+                });
+
+                results.push({
+                  customerId,
+                  customerName: customer.name,
+                  success,
+                });
               }
-              
-              const { emailService } = await import('./email-service');
-              const success = await emailService.sendPaymentReminder({
-                customer,
-                balanceDue: totalDue,
-                daysOverdue,
-                invoiceNumbers: customerInvoices.map(inv => inv.invoiceNumber),
-                dueDate: oldestDueDate,
-                companyId
-              });
-              
-              results.push({ customerId, customerName: customer.name, success });
             }
           }
+          res.json({ message: "Reminders processed", results });
+        } else {
+          // Send reminders to all customers with outstanding balances
+          await reminderScheduler.processPaymentReminders(companyId);
+          res.json({
+            message: "Payment reminders processed for all customers",
+          });
         }
-        res.json({ message: "Reminders processed", results });
-      } else {
-        // Send reminders to all customers with outstanding balances
-        await reminderScheduler.processPaymentReminders(companyId);
-        res.json({ message: "Payment reminders processed for all customers" });
+      } catch (error: any) {
+        console.error("Error sending payment reminders:", error);
+        res.status(500).json({ message: "Failed to send payment reminders" });
       }
-    } catch (error: any) {
-      console.error("Error sending payment reminders:", error);
-      res.status(500).json({ message: "Failed to send payment reminders" });
-    }
-  });
+    },
+  );
 
   app.post("/api/email/test-connection", requireAuth, async (req, res) => {
     try {
-      const { emailService } = await import('./email-service');
+      const { emailService } = await import("./email-service");
       const isConnected = await emailService.testEmailConnection();
       res.json({ connected: isConnected });
     } catch (error: any) {
@@ -340,97 +441,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Payment reminder settings endpoints
-  app.get("/api/companies/:companyId/reminder-settings", requireAuth, async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const { schedulerService } = await import('./reminder-scheduler');
-      const settings = await schedulerService.getReminderSettings(companyId);
-      res.json(settings);
-    } catch (error: any) {
-      console.error("Error fetching reminder settings:", error);
-      res.status(500).json({ message: "Failed to fetch reminder settings" });
-    }
-  });
-
-  app.put("/api/companies/:companyId/reminder-settings", requireAuth, async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const { schedulerService } = await import('./reminder-scheduler');
-      await schedulerService.updateReminderSettings(companyId, req.body);
-      res.json({ message: "Reminder settings updated successfully" });
-    } catch (error: any) {
-      console.error("Error updating reminder settings:", error);
-      res.status(500).json({ message: "Failed to update reminder settings" });
-    }
-  });
-
-  app.get("/api/companies/:companyId/customers-with-balance", requireAuth, async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const customers = await storage.getCustomers(companyId);
-      const invoices = await storage.getInvoices(companyId);
-      
-      const customersWithBalance = [];
-      
-      for (const customer of customers) {
-        // Calculate actual outstanding balance using customer statement summary
-        const customerSummary = await storage.getCustomerStatementSummary(companyId, customer.id);
-        const totalDue = customerSummary.closingBalance;
-        
-        // Only include customers with outstanding balances
-        if (totalDue > 0) {
-          // Get unpaid invoices to calculate days overdue and invoice count
-          const customerInvoices = invoices.filter(inv => 
-            inv.customerId === customer.id && 
-            inv.status === 'sent' &&
-            parseFloat(inv.amount) > parseFloat(inv.paidAmount || '0')
-          );
-          
-          let daysOverdue = 0;
-          let invoiceCount = customerInvoices.length;
-          let oldestDueDate = new Date().toISOString().split('T')[0];
-          
-          // Calculate days overdue based on oldest unpaid invoice OR opening balance date
-          if (customerInvoices.length > 0) {
-            const oldestInvoice = customerInvoices.sort((a, b) => 
-              new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-            )[0];
-            
-            const today = new Date();
-            const dueDate = new Date(oldestInvoice.dueDate);
-            daysOverdue = Math.max(0, Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
-            oldestDueDate = oldestInvoice.dueDate;
-          } else if (customer.openingBalanceDate) {
-            // If no invoices but has opening balance, use opening balance date for overdue calculation
-            const today = new Date();
-            const openingDate = new Date(customer.openingBalanceDate);
-            daysOverdue = Math.max(0, Math.ceil((today.getTime() - openingDate.getTime()) / (1000 * 60 * 60 * 24)));
-            oldestDueDate = customer.openingBalanceDate;
-          } else {
-            // Default to 30 days overdue if we have a balance but no specific date
-            daysOverdue = 30;
-          }
-          
-          customersWithBalance.push({
-            ...customer,
-            balanceDue: totalDue,
-            daysOverdue,
-            invoiceCount,
-            oldestDueDate,
-            hasEmail: !!customer.email, // Flag to show if customer has email for sending reminders
-            enablePaymentReminders: customer.enablePaymentReminders,
-            reminderDays: customer.reminderDays,
-            reminderFrequency: customer.reminderFrequency
-          });
-        }
+  app.get(
+    "/api/companies/:companyId/reminder-settings",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const { schedulerService } = await import("./reminder-scheduler");
+        const settings = await schedulerService.getReminderSettings(companyId);
+        res.json(settings);
+      } catch (error: any) {
+        console.error("Error fetching reminder settings:", error);
+        res.status(500).json({ message: "Failed to fetch reminder settings" });
       }
-      
-      res.json(customersWithBalance);
-    } catch (error: any) {
-      console.error("Error fetching customers with balance:", error);
-      res.status(500).json({ message: "Failed to fetch customers with outstanding balance" });
-    }
-  });
+    },
+  );
+
+  app.put(
+    "/api/companies/:companyId/reminder-settings",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const { schedulerService } = await import("./reminder-scheduler");
+        await schedulerService.updateReminderSettings(companyId, req.body);
+        res.json({ message: "Reminder settings updated successfully" });
+      } catch (error: any) {
+        console.error("Error updating reminder settings:", error);
+        res.status(500).json({ message: "Failed to update reminder settings" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/companies/:companyId/customers-with-balance",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const customers = await storage.getCustomers(companyId);
+        const invoices = await storage.getInvoices(companyId);
+
+        const customersWithBalance = [];
+
+        for (const customer of customers) {
+          // Calculate actual outstanding balance using customer statement summary
+          const customerSummary = await storage.getCustomerStatementSummary(
+            companyId,
+            customer.id,
+          );
+          const totalDue = customerSummary.closingBalance;
+
+          // Only include customers with outstanding balances
+          if (totalDue > 0) {
+            // Get unpaid invoices to calculate days overdue and invoice count
+            const customerInvoices = invoices.filter(
+              (inv) =>
+                inv.customerId === customer.id &&
+                inv.status === "sent" &&
+                parseFloat(inv.amount) > parseFloat(inv.paidAmount || "0"),
+            );
+
+            let daysOverdue = 0;
+            let invoiceCount = customerInvoices.length;
+            let oldestDueDate = new Date().toISOString().split("T")[0];
+
+            // Calculate days overdue based on oldest unpaid invoice OR opening balance date
+            if (customerInvoices.length > 0) {
+              const oldestInvoice = customerInvoices.sort(
+                (a, b) =>
+                  new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+              )[0];
+
+              const today = new Date();
+              const dueDate = new Date(oldestInvoice.dueDate);
+              daysOverdue = Math.max(
+                0,
+                Math.ceil(
+                  (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+                ),
+              );
+              oldestDueDate = oldestInvoice.dueDate;
+            } else if (customer.openingBalanceDate) {
+              // If no invoices but has opening balance, use opening balance date for overdue calculation
+              const today = new Date();
+              const openingDate = new Date(customer.openingBalanceDate);
+              daysOverdue = Math.max(
+                0,
+                Math.ceil(
+                  (today.getTime() - openingDate.getTime()) /
+                    (1000 * 60 * 60 * 24),
+                ),
+              );
+              oldestDueDate = customer.openingBalanceDate;
+            } else {
+              // Default to 30 days overdue if we have a balance but no specific date
+              daysOverdue = 30;
+            }
+
+            customersWithBalance.push({
+              ...customer,
+              balanceDue: totalDue,
+              daysOverdue,
+              invoiceCount,
+              oldestDueDate,
+              hasEmail: !!customer.email, // Flag to show if customer has email for sending reminders
+              enablePaymentReminders: customer.enablePaymentReminders,
+              reminderDays: customer.reminderDays,
+              reminderFrequency: customer.reminderFrequency,
+            });
+          }
+        }
+
+        res.json(customersWithBalance);
+      } catch (error: any) {
+        console.error("Error fetching customers with balance:", error);
+        res
+          .status(500)
+          .json({
+            message: "Failed to fetch customers with outstanding balance",
+          });
+      }
+    },
+  );
 
   // Companies routes
   app.get("/api/companies", async (req, res) => {
@@ -498,22 +631,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const companyId = parseInt(req.params.id);
       const company = await storage.getCompany(companyId);
-      
+
       if (!company) {
         return res.status(404).json({ message: "Company not found" });
       }
 
       // Return current system SMTP configuration if company doesn't have one
       const defaults = {
-        smtpHost: company.smtpHost || process.env.GOOGLE_WORKSPACE_EMAIL?.split('@')[1]?.replace('gmail.com', 'smtp.gmail.com') || "smtp.gmail.com",
+        smtpHost:
+          company.smtpHost ||
+          process.env.GOOGLE_WORKSPACE_EMAIL?.split("@")[1]?.replace(
+            "gmail.com",
+            "smtp.gmail.com",
+          ) ||
+          "smtp.gmail.com",
         smtpPort: company.smtpPort || 587,
         smtpUser: company.smtpUser || process.env.GOOGLE_WORKSPACE_EMAIL || "",
         smtpPassword: company.smtpPassword || "", // Never send password in response
         smtpSecure: company.smtpSecure || false,
-        smtpFromEmail: company.smtpFromEmail || process.env.SMTP_FROM_EMAIL || process.env.GOOGLE_WORKSPACE_EMAIL || "",
+        smtpFromEmail:
+          company.smtpFromEmail ||
+          process.env.SMTP_FROM_EMAIL ||
+          process.env.GOOGLE_WORKSPACE_EMAIL ||
+          "",
         smtpFromName: company.smtpFromName || company.name || "",
-        hasSystemConfig: !!(process.env.GOOGLE_WORKSPACE_EMAIL && process.env.GOOGLE_WORKSPACE_APP_PASSWORD),
-        systemEmail: process.env.GOOGLE_WORKSPACE_EMAIL || null
+        hasSystemConfig: !!(
+          process.env.GOOGLE_WORKSPACE_EMAIL &&
+          process.env.GOOGLE_WORKSPACE_APP_PASSWORD
+        ),
+        systemEmail: process.env.GOOGLE_WORKSPACE_EMAIL || null,
       };
 
       res.json(defaults);
@@ -528,7 +674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const companyId = parseInt(req.params.id);
       const company = await storage.getCompany(companyId);
-      
+
       if (!company) {
         return res.status(404).json({ message: "Company not found" });
       }
@@ -540,12 +686,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         secure: company.smtpSecure || false,
         auth: {
           user: company.smtpUser || process.env.GOOGLE_WORKSPACE_EMAIL,
-          pass: company.smtpPassword || process.env.GOOGLE_WORKSPACE_APP_PASSWORD,
+          pass:
+            company.smtpPassword || process.env.GOOGLE_WORKSPACE_APP_PASSWORD,
         },
       };
 
       if (!smtpConfig.auth.user || !smtpConfig.auth.pass) {
-        return res.status(400).json({ message: "SMTP configuration incomplete" });
+        return res
+          .status(400)
+          .json({ message: "SMTP configuration incomplete" });
       }
 
       // Test the SMTP connection
@@ -555,7 +704,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "SMTP connection successful" });
     } catch (error: any) {
       console.error("SMTP test error:", error);
-      res.status(500).json({ message: "SMTP connection failed: " + error.message });
+      res
+        .status(500)
+        .json({ message: "SMTP connection failed: " + error.message });
     }
   });
 
@@ -587,7 +738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyId = parseInt(req.params.companyId);
       const validatedData = insertCustomerSchema.parse({
         ...req.body,
-        companyId: companyId
+        companyId: companyId,
       });
       const customer = await storage.createCustomer(validatedData);
       res.status(201).json(customer);
@@ -732,7 +883,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error.issues) {
         console.error("Validation issues:", error.issues);
       }
-      res.status(400).json({ message: "Failed to create bank account", error: error.message });
+      res
+        .status(400)
+        .json({
+          message: "Failed to create bank account",
+          error: error.message,
+        });
     }
   });
 
@@ -765,7 +921,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyId = parseInt(req.params.companyId);
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
-      const transactions = await storage.getTransactions(companyId, page, limit);
+      const transactions = await storage.getTransactions(
+        companyId,
+        page,
+        limit,
+      );
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -836,7 +996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyId = parseInt(req.params.companyId);
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
-      
+
       const result = await storage.getExpenseCategories(companyId, page, limit);
       res.json(result);
     } catch (error) {
@@ -849,7 +1009,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const companyId = parseInt(req.params.companyId);
       const validatedData = insertExpenseCategorySchema.parse(req.body);
-      const category = await storage.createExpenseCategory(companyId, validatedData);
+      const category = await storage.createExpenseCategory(
+        companyId,
+        validatedData,
+      );
       res.status(201).json(category);
     } catch (error) {
       console.error("Error creating expense category:", error);
@@ -857,96 +1020,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/companies/:companyId/expense-categories/:categoryId", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const categoryId = parseInt(req.params.categoryId);
-      const updates = req.body;
-      const category = await storage.updateExpenseCategory(companyId, categoryId, updates);
-      res.json(category);
-    } catch (error) {
-      console.error("Error updating expense category:", error);
-      res.status(500).json({ message: "Failed to update expense category" });
-    }
-  });
+  app.patch(
+    "/api/companies/:companyId/expense-categories/:categoryId",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const categoryId = parseInt(req.params.categoryId);
+        const updates = req.body;
+        const category = await storage.updateExpenseCategory(
+          companyId,
+          categoryId,
+          updates,
+        );
+        res.json(category);
+      } catch (error) {
+        console.error("Error updating expense category:", error);
+        res.status(500).json({ message: "Failed to update expense category" });
+      }
+    },
+  );
 
-  app.delete("/api/companies/:companyId/expense-categories/:categoryId", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const categoryId = parseInt(req.params.categoryId);
-      await storage.deleteExpenseCategory(companyId, categoryId);
-      res.json({ message: "Category deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting expense category:", error);
-      res.status(500).json({ message: "Failed to delete expense category" });
-    }
-  });
+  app.delete(
+    "/api/companies/:companyId/expense-categories/:categoryId",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const categoryId = parseInt(req.params.categoryId);
+        await storage.deleteExpenseCategory(companyId, categoryId);
+        res.json({ message: "Category deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting expense category:", error);
+        res.status(500).json({ message: "Failed to delete expense category" });
+      }
+    },
+  );
 
   // Expense Transactions routes
-  app.get("/api/companies/:companyId/expense-transactions", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const transactions = await storage.getExpenseTransactions(companyId);
-      res.json(transactions);
-    } catch (error) {
-      console.error("Error fetching expense transactions:", error);
-      res.status(500).json({ message: "Failed to fetch expense transactions" });
-    }
-  });
-
-  app.get("/api/companies/:companyId/expense-transactions/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const transaction = await storage.getExpenseTransaction(id);
-      if (!transaction) {
-        return res.status(404).json({ message: "Expense transaction not found" });
+  app.get(
+    "/api/companies/:companyId/expense-transactions",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const transactions = await storage.getExpenseTransactions(companyId);
+        res.json(transactions);
+      } catch (error) {
+        console.error("Error fetching expense transactions:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch expense transactions" });
       }
-      res.json(transaction);
-    } catch (error) {
-      console.error("Error fetching expense transaction:", error);
-      res.status(500).json({ message: "Failed to fetch expense transaction" });
-    }
-  });
+    },
+  );
 
-  app.post("/api/companies/:companyId/expense-transactions", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const transactionData = { ...req.body, companyId };
-      const transaction = await storage.createExpenseTransaction(transactionData);
-      res.status(201).json(transaction);
-    } catch (error) {
-      console.error("Error creating expense transaction:", error);
-      res.status(500).json({ message: "Failed to create expense transaction" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/expense-transactions/:id",
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const transaction = await storage.getExpenseTransaction(id);
+        if (!transaction) {
+          return res
+            .status(404)
+            .json({ message: "Expense transaction not found" });
+        }
+        res.json(transaction);
+      } catch (error) {
+        console.error("Error fetching expense transaction:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch expense transaction" });
+      }
+    },
+  );
 
-  app.put("/api/companies/:companyId/expense-transactions/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const transaction = await storage.updateExpenseTransaction(id, req.body);
-      res.json(transaction);
-    } catch (error) {
-      console.error("Error updating expense transaction:", error);
-      res.status(500).json({ message: "Failed to update expense transaction" });
-    }
-  });
+  app.post(
+    "/api/companies/:companyId/expense-transactions",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const transactionData = { ...req.body, companyId };
+        const transaction =
+          await storage.createExpenseTransaction(transactionData);
+        res.status(201).json(transaction);
+      } catch (error) {
+        console.error("Error creating expense transaction:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to create expense transaction" });
+      }
+    },
+  );
 
-  app.delete("/api/companies/:companyId/expense-transactions/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      await storage.deleteExpenseTransaction(id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting expense transaction:", error);
-      res.status(500).json({ message: "Failed to delete expense transaction" });
-    }
-  });
+  app.put(
+    "/api/companies/:companyId/expense-transactions/:id",
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const transaction = await storage.updateExpenseTransaction(
+          id,
+          req.body,
+        );
+        res.json(transaction);
+      } catch (error) {
+        console.error("Error updating expense transaction:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to update expense transaction" });
+      }
+    },
+  );
+
+  app.delete(
+    "/api/companies/:companyId/expense-transactions/:id",
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        await storage.deleteExpenseTransaction(id);
+        res.status(204).send();
+      } catch (error) {
+        console.error("Error deleting expense transaction:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to delete expense transaction" });
+      }
+    },
+  );
 
   // Analytics endpoint
   app.get("/api/companies/:companyId/analytics", async (req, res) => {
     try {
       const companyId = parseInt(req.params.companyId);
-      const timeRange = req.query.timeRange as string || "12m";
+      const timeRange = (req.query.timeRange as string) || "12m";
       const analytics = await storage.getAnalytics(companyId, timeRange);
       res.json(analytics);
     } catch (error) {
@@ -959,33 +1163,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/companies/:companyId/dashboard/metrics", async (req, res) => {
     try {
       const companyId = parseInt(req.params.companyId);
-      
+
       // Get date range from query params or default to current month
       const currentDate = new Date();
-      const defaultStartDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString().split('T')[0];
-      const defaultEndDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString().split('T')[0];
-      
-      const startDate = req.query.startDate as string || defaultStartDate;
-      const endDate = req.query.endDate as string || defaultEndDate;
-      
+      const defaultStartDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        1,
+      )
+        .toISOString()
+        .split("T")[0];
+      const defaultEndDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1,
+        0,
+      )
+        .toISOString()
+        .split("T")[0];
+
+      const startDate = (req.query.startDate as string) || defaultStartDate;
+      const endDate = (req.query.endDate as string) || defaultEndDate;
+
       // Get total revenue (from uploaded revenue sheets)
-      const totalRevenue = await storage.getTotalRevenue(companyId, startDate, endDate);
-      
+      const totalRevenue = await storage.getTotalRevenue(
+        companyId,
+        startDate,
+        endDate,
+      );
+
       // Get total expenses (from expense transactions)
-      const totalExpenses = await storage.getTotalExpenses(companyId, startDate, endDate);
-      
+      const totalExpenses = await storage.getTotalExpenses(
+        companyId,
+        startDate,
+        endDate,
+      );
+
       // Get total cost (from uploaded revenue sheets cost column)
-      const totalCost = await storage.getTotalCost(companyId, startDate, endDate);
-      
+      const totalCost = await storage.getTotalCost(
+        companyId,
+        startDate,
+        endDate,
+      );
+
       // Get outstanding receivables (not filtered by date - always current)
-      const outstandingBalance = await storage.getOutstandingReceivables(companyId);
-      
+      const outstandingBalance =
+        await storage.getOutstandingReceivables(companyId);
+
       // Get total payable (from bills and vendor balances)
       const totalPayable = await storage.getTotalPayable(companyId);
-      
+
       // Calculate net profit
       const netProfit = totalRevenue - totalExpenses;
-      
+
       res.json({
         totalRevenue,
         totalExpenses,
@@ -993,7 +1222,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         outstandingBalance,
         totalPayable,
         netProfit,
-        period: { startDate, endDate }
+        period: { startDate, endDate },
       });
     } catch (error) {
       console.error("Error fetching dashboard metrics:", error);
@@ -1001,38 +1230,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/companies/:companyId/dashboard/outstanding-customers", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const customers = await storage.getOutstandingCustomers(companyId);
-      res.json(customers);
-    } catch (error) {
-      console.error("Error fetching outstanding customers:", error);
-      res.status(500).json({ message: "Failed to fetch outstanding customers" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/dashboard/outstanding-customers",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const customers = await storage.getOutstandingCustomers(companyId);
+        res.json(customers);
+      } catch (error) {
+        console.error("Error fetching outstanding customers:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch outstanding customers" });
+      }
+    },
+  );
 
-  app.get("/api/companies/:companyId/dashboard/outstanding-vendors", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const vendors = await storage.getOutstandingVendors(companyId);
-      res.json(vendors);
-    } catch (error) {
-      console.error("Error fetching outstanding vendors:", error);
-      res.status(500).json({ message: "Failed to fetch outstanding vendors" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/dashboard/outstanding-vendors",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const vendors = await storage.getOutstandingVendors(companyId);
+        res.json(vendors);
+      } catch (error) {
+        console.error("Error fetching outstanding vendors:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch outstanding vendors" });
+      }
+    },
+  );
 
-  app.get("/api/companies/:companyId/dashboard/recent-transactions", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const transactions = await storage.getRecentTransactions(companyId, 10);
-      res.json(transactions);
-    } catch (error) {
-      console.error("Error fetching recent transactions:", error);
-      res.status(500).json({ message: "Failed to fetch recent transactions" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/dashboard/recent-transactions",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const transactions = await storage.getRecentTransactions(companyId, 10);
+        res.json(transactions);
+      } catch (error) {
+        console.error("Error fetching recent transactions:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch recent transactions" });
+      }
+    },
+  );
 
   // Customer statements with pagination
   app.get("/api/companies/:companyId/customer-statements", async (req, res) => {
@@ -1040,8 +1284,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyId = parseInt(req.params.companyId);
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
-      
-      const result = await storage.getCustomerStatements(companyId, page, limit);
+
+      const result = await storage.getCustomerStatements(
+        companyId,
+        page,
+        limit,
+      );
       res.json(result);
     } catch (error) {
       console.error("Error fetching customer statements:", error);
@@ -1050,18 +1298,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get detailed customer statement summary
-  app.get("/api/companies/:companyId/customers/:customerId/statement-summary", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const customerId = parseInt(req.params.customerId);
-      
-      const summary = await storage.getCustomerStatementSummary(companyId, customerId);
-      res.json(summary);
-    } catch (error) {
-      console.error("Error fetching customer statement summary:", error);
-      res.status(500).json({ message: "Failed to fetch customer statement summary" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/customers/:customerId/statement-summary",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const customerId = parseInt(req.params.customerId);
+
+        const summary = await storage.getCustomerStatementSummary(
+          companyId,
+          customerId,
+        );
+        res.json(summary);
+      } catch (error) {
+        console.error("Error fetching customer statement summary:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch customer statement summary" });
+      }
+    },
+  );
 
   // Bank Statement Upload routes
   app.get("/api/companies/:companyId/bank-uploads", async (req, res) => {
@@ -1081,28 +1337,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { csvData, ...uploadData } = req.body;
       const validatedData = insertBankStatementUploadSchema.parse({
         ...uploadData,
-        companyId: companyId
+        companyId: companyId,
       });
-      
+
       // Create the upload record
       const upload = await storage.createBankStatementUpload(validatedData);
-      
+
       // Process the CSV data if provided
       if (csvData && Array.isArray(csvData)) {
         try {
-          console.log(`Processing ${csvData.length} rows for upload ${upload.id}`);
+          console.log(
+            `Processing ${csvData.length} rows for upload ${upload.id}`,
+          );
           await storage.processBankStatementUpload(upload.id, csvData);
           console.log(`Successfully processed upload ${upload.id}`);
         } catch (processError) {
-          console.error("Error processing bank statement upload:", processError);
+          console.error(
+            "Error processing bank statement upload:",
+            processError,
+          );
           // Update upload status to failed
           await storage.updateBankStatementUpload(upload.id, {
             status: "FAILED",
-            errorMessage: processError instanceof Error ? processError.message : 'Processing failed',
+            errorMessage:
+              processError instanceof Error
+                ? processError.message
+                : "Processing failed",
           });
         }
       }
-      
+
       res.status(201).json(upload);
     } catch (error) {
       console.error("Error creating bank upload:", error);
@@ -1110,83 +1374,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/companies/:companyId/bank-statement-transactions", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const uploadId = req.query.uploadId ? parseInt(req.query.uploadId as string) : undefined;
-      const transactions = await storage.getBankStatementTransactions(companyId, uploadId);
-      res.json(transactions);
-    } catch (error) {
-      console.error("Error fetching bank statement transactions:", error);
-      res.status(500).json({ message: "Failed to fetch bank statement transactions" });
-    }
-  });
-
-  app.put("/api/bank-statement-transactions/:id/categorize", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const categorization = req.body;
-      const transaction = await storage.categorizeBankTransaction(id, categorization);
-
-      // If this is an expense transaction (has categoryId), create an expense transaction record
-      if (categorization.categoryId && transaction) {
-        try {
-          // Extract payee from description (before " - " if exists)
-          const payee = transaction.description.split(' - ')[0] || transaction.description;
-          
-          const expenseTransaction = {
-            companyId: transaction.companyId,
-            expenseCategoryId: categorization.categoryId,
-            transactionDate: transaction.transactionDate,
-            payee: payee,
-            transactionType: 'EXPENSE' as const,
-            description: transaction.description,
-            amountBeforeTax: transaction.debitAmount !== '0.00' ? transaction.debitAmount || '0.00' : transaction.creditAmount || '0.00',
-            salesTax: '0.00',
-            totalAmount: transaction.debitAmount !== '0.00' ? transaction.debitAmount || '0.00' : transaction.creditAmount || '0.00',
-            vendorId: categorization.vendorId || null,
-            notes: categorization.notes || `Auto-created from bank transaction ID ${id}`
-          };
-
-          await storage.createExpenseTransaction(expenseTransaction);
-          console.log(`Created expense transaction for bank transaction ${id}`);
-        } catch (expenseError) {
-          console.error("Error creating expense transaction:", expenseError);
-          // Don't fail the entire categorization if expense creation fails
-        }
+  app.get(
+    "/api/companies/:companyId/bank-statement-transactions",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const uploadId = req.query.uploadId
+          ? parseInt(req.query.uploadId as string)
+          : undefined;
+        const transactions = await storage.getBankStatementTransactions(
+          companyId,
+          uploadId,
+        );
+        res.json(transactions);
+      } catch (error) {
+        console.error("Error fetching bank statement transactions:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch bank statement transactions" });
       }
+    },
+  );
 
-      res.json(transaction);
-    } catch (error) {
-      console.error("Error categorizing bank transaction:", error);
-      res.status(400).json({ message: "Failed to categorize bank transaction" });
-    }
-  });
+  app.put(
+    "/api/bank-statement-transactions/:id/categorize",
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const categorization = req.body;
+        const transaction = await storage.categorizeBankTransaction(
+          id,
+          categorization,
+        );
+
+        // If this is an expense transaction (has categoryId), create an expense transaction record
+        if (categorization.categoryId && transaction) {
+          try {
+            // Extract payee from description (before " - " if exists)
+            const payee =
+              transaction.description.split(" - ")[0] ||
+              transaction.description;
+
+            const expenseTransaction = {
+              companyId: transaction.companyId,
+              expenseCategoryId: categorization.categoryId,
+              transactionDate: transaction.transactionDate,
+              payee: payee,
+              transactionType: "EXPENSE" as const,
+              description: transaction.description,
+              amountBeforeTax:
+                transaction.debitAmount !== "0.00"
+                  ? transaction.debitAmount || "0.00"
+                  : transaction.creditAmount || "0.00",
+              salesTax: "0.00",
+              totalAmount:
+                transaction.debitAmount !== "0.00"
+                  ? transaction.debitAmount || "0.00"
+                  : transaction.creditAmount || "0.00",
+              vendorId: categorization.vendorId || null,
+              notes:
+                categorization.notes ||
+                `Auto-created from bank transaction ID ${id}`,
+            };
+
+            await storage.createExpenseTransaction(expenseTransaction);
+            console.log(
+              `Created expense transaction for bank transaction ${id}`,
+            );
+          } catch (expenseError) {
+            console.error("Error creating expense transaction:", expenseError);
+            // Don't fail the entire categorization if expense creation fails
+          }
+        }
+
+        res.json(transaction);
+      } catch (error) {
+        console.error("Error categorizing bank transaction:", error);
+        res
+          .status(400)
+          .json({ message: "Failed to categorize bank transaction" });
+      }
+    },
+  );
 
   app.post("/api/bank-uploads", async (req, res) => {
     try {
       const { csvData, ...uploadData } = req.body;
       const validatedData = insertBankStatementUploadSchema.parse(uploadData);
-      
+
       // Create the upload record
       const upload = await storage.createBankStatementUpload(validatedData);
-      
+
       // Process the CSV data if provided
       if (csvData && Array.isArray(csvData)) {
         try {
-          console.log(`Processing ${csvData.length} rows for upload ${upload.id}`);
+          console.log(
+            `Processing ${csvData.length} rows for upload ${upload.id}`,
+          );
           await storage.processBankStatementUpload(upload.id, csvData);
           console.log(`Successfully processed upload ${upload.id}`);
         } catch (processError) {
-          console.error("Error processing bank statement upload:", processError);
+          console.error(
+            "Error processing bank statement upload:",
+            processError,
+          );
           // Update upload status to failed
           await storage.updateBankStatementUpload(upload.id, {
             status: "FAILED",
-            errorMessage: processError instanceof Error ? processError.message : 'Processing failed',
+            errorMessage:
+              processError instanceof Error
+                ? processError.message
+                : "Processing failed",
           });
         }
       }
-      
+
       res.status(201).json(upload);
     } catch (error) {
       console.error("Error creating bank upload:", error);
@@ -1206,28 +1508,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/companies/:companyId/dashboard/recent-transactions", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const limit = parseInt(req.query.limit as string) || 10;
-      const transactions = await storage.getRecentTransactions(companyId, limit);
-      res.json(transactions);
-    } catch (error) {
-      console.error("Error fetching recent transactions:", error);
-      res.status(500).json({ message: "Failed to fetch recent transactions" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/dashboard/recent-transactions",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const limit = parseInt(req.query.limit as string) || 10;
+        const transactions = await storage.getRecentTransactions(
+          companyId,
+          limit,
+        );
+        res.json(transactions);
+      } catch (error) {
+        console.error("Error fetching recent transactions:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch recent transactions" });
+      }
+    },
+  );
 
-  app.get("/api/companies/:companyId/dashboard/outstanding-customers", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const customers = await storage.getOutstandingCustomers(companyId);
-      res.json(customers);
-    } catch (error) {
-      console.error("Error fetching outstanding customers:", error);
-      res.status(500).json({ message: "Failed to fetch outstanding customers" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/dashboard/outstanding-customers",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const customers = await storage.getOutstandingCustomers(companyId);
+        res.json(customers);
+      } catch (error) {
+        console.error("Error fetching outstanding customers:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch outstanding customers" });
+      }
+    },
+  );
 
   // Chart of Accounts routes
   app.get("/api/companies/:companyId/chart-of-accounts", async (req, res) => {
@@ -1246,13 +1561,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const companyId = parseInt(req.params.companyId);
       const { startDate, endDate } = req.query;
-      
+
       const report = await storage.getProfitLossReport(
         companyId,
         startDate as string,
-        endDate as string
+        endDate as string,
       );
-      
+
       res.json(report);
     } catch (error) {
       console.error("Error fetching P&L report:", error);
@@ -1261,22 +1576,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Balance Sheet Report
-  app.get("/api/companies/:companyId/reports/balance-sheet", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const { asOfDate } = req.query;
-      
-      const report = await storage.getBalanceSheetReport(
-        companyId,
-        asOfDate as string
-      );
-      
-      res.json(report);
-    } catch (error) {
-      console.error("Error fetching balance sheet report:", error);
-      res.status(500).json({ message: "Failed to fetch balance sheet report" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/reports/balance-sheet",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const { asOfDate } = req.query;
+
+        const report = await storage.getBalanceSheetReport(
+          companyId,
+          asOfDate as string,
+        );
+
+        res.json(report);
+      } catch (error) {
+        console.error("Error fetching balance sheet report:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch balance sheet report" });
+      }
+    },
+  );
 
   // Revenue Upload routes
   app.get("/api/companies/:companyId/revenue-uploads", async (req, res) => {
@@ -1295,7 +1615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyId = parseInt(req.params.companyId);
       const validatedData = insertRevenueUploadSchema.parse({
         ...req.body,
-        companyId: companyId
+        companyId: companyId,
       });
       const upload = await storage.createRevenueUpload(validatedData);
       res.status(201).json(upload);
@@ -1346,11 +1666,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       const { csvData } = req.body;
-      
+
       if (!csvData || !Array.isArray(csvData)) {
         return res.status(400).json({ message: "CSV data is required" });
       }
-      
+
       await storage.processRevenueUpload(id, csvData);
       res.json({ message: "Revenue upload processed successfully" });
     } catch (error) {
@@ -1360,55 +1680,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Customer Statement Lines routes
-  app.get("/api/companies/:companyId/customers/:customerId/statement-lines", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const customerId = parseInt(req.params.customerId);
-      const { startDate, endDate } = req.query;
-      
-      const lines = await storage.getCustomerStatementLines(
-        companyId,
-        customerId,
-        startDate as string,
-        endDate as string
-      );
-      res.json(lines);
-    } catch (error) {
-      console.error("Error fetching customer statement lines:", error);
-      res.status(500).json({ message: "Failed to fetch customer statement lines" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/customers/:customerId/statement-lines",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const customerId = parseInt(req.params.customerId);
+        const { startDate, endDate } = req.query;
 
-  app.get("/api/companies/:companyId/customers/:customerId/statement-summary", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const customerId = parseInt(req.params.customerId);
-      const { startDate, endDate } = req.query;
-      
-      const summary = await storage.getCustomerStatementSummary(
-        companyId,
-        customerId,
-        startDate as string,
-        endDate as string
-      );
-      res.json(summary);
-    } catch (error) {
-      console.error("Error fetching customer statement summary:", error);
-      res.status(500).json({ message: "Failed to fetch customer statement summary" });
-    }
-  });
+        const lines = await storage.getCustomerStatementLines(
+          companyId,
+          customerId,
+          startDate as string,
+          endDate as string,
+        );
+        res.json(lines);
+      } catch (error) {
+        console.error("Error fetching customer statement lines:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch customer statement lines" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/companies/:companyId/customers/:customerId/statement-summary",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const customerId = parseInt(req.params.customerId);
+        const { startDate, endDate } = req.query;
+
+        const summary = await storage.getCustomerStatementSummary(
+          companyId,
+          customerId,
+          startDate as string,
+          endDate as string,
+        );
+        res.json(summary);
+      } catch (error) {
+        console.error("Error fetching customer statement summary:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch customer statement summary" });
+      }
+    },
+  );
 
   app.get("/api/customer-statement-lines/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const line = await storage.getCustomerStatementLine(id);
       if (!line) {
-        return res.status(404).json({ message: "Customer statement line not found" });
+        return res
+          .status(404)
+          .json({ message: "Customer statement line not found" });
       }
       res.json(line);
     } catch (error) {
       console.error("Error fetching customer statement line:", error);
-      res.status(500).json({ message: "Failed to fetch customer statement line" });
+      res
+        .status(500)
+        .json({ message: "Failed to fetch customer statement line" });
     }
   });
 
@@ -1419,19 +1753,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(line);
     } catch (error) {
       console.error("Error creating customer statement line:", error);
-      res.status(400).json({ message: "Failed to create customer statement line" });
+      res
+        .status(400)
+        .json({ message: "Failed to create customer statement line" });
     }
   });
 
   app.put("/api/customer-statement-lines/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const validatedData = insertCustomerStatementLineSchema.partial().parse(req.body);
+      const validatedData = insertCustomerStatementLineSchema
+        .partial()
+        .parse(req.body);
       const line = await storage.updateCustomerStatementLine(id, validatedData);
       res.json(line);
     } catch (error) {
       console.error("Error updating customer statement line:", error);
-      res.status(400).json({ message: "Failed to update customer statement line" });
+      res
+        .status(400)
+        .json({ message: "Failed to update customer statement line" });
     }
   });
 
@@ -1442,57 +1782,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting customer statement line:", error);
-      res.status(500).json({ message: "Failed to delete customer statement line" });
+      res
+        .status(500)
+        .json({ message: "Failed to delete customer statement line" });
     }
   });
 
   // Bank Statement Transaction routes
-  app.get("/api/companies/:companyId/bank-statement-transactions", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const uploadId = req.query.uploadId ? parseInt(req.query.uploadId as string) : undefined;
-      const transactions = await storage.getBankStatementTransactions(companyId, uploadId);
-      res.json(transactions);
-    } catch (error) {
-      console.error("Error fetching bank statement transactions:", error);
-      res.status(500).json({ message: "Failed to fetch bank statement transactions" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/bank-statement-transactions",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const uploadId = req.query.uploadId
+          ? parseInt(req.query.uploadId as string)
+          : undefined;
+        const transactions = await storage.getBankStatementTransactions(
+          companyId,
+          uploadId,
+        );
+        res.json(transactions);
+      } catch (error) {
+        console.error("Error fetching bank statement transactions:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch bank statement transactions" });
+      }
+    },
+  );
 
   app.get("/api/bank-statement-transactions/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const transaction = await storage.getBankStatementTransaction(id);
       if (!transaction) {
-        return res.status(404).json({ message: "Bank statement transaction not found" });
+        return res
+          .status(404)
+          .json({ message: "Bank statement transaction not found" });
       }
       res.json(transaction);
     } catch (error) {
       console.error("Error fetching bank statement transaction:", error);
-      res.status(500).json({ message: "Failed to fetch bank statement transaction" });
+      res
+        .status(500)
+        .json({ message: "Failed to fetch bank statement transaction" });
     }
   });
 
   app.post("/api/bank-statement-transactions", async (req, res) => {
     try {
-      const validatedData = insertBankStatementTransactionSchema.parse(req.body);
-      const transaction = await storage.createBankStatementTransaction(validatedData);
+      const validatedData = insertBankStatementTransactionSchema.parse(
+        req.body,
+      );
+      const transaction =
+        await storage.createBankStatementTransaction(validatedData);
       res.status(201).json(transaction);
     } catch (error) {
       console.error("Error creating bank statement transaction:", error);
-      res.status(400).json({ message: "Failed to create bank statement transaction" });
+      res
+        .status(400)
+        .json({ message: "Failed to create bank statement transaction" });
     }
   });
 
   app.put("/api/bank-statement-transactions/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const validatedData = insertBankStatementTransactionSchema.partial().parse(req.body);
-      const transaction = await storage.updateBankStatementTransaction(id, validatedData);
+      const validatedData = insertBankStatementTransactionSchema
+        .partial()
+        .parse(req.body);
+      const transaction = await storage.updateBankStatementTransaction(
+        id,
+        validatedData,
+      );
       res.json(transaction);
     } catch (error) {
       console.error("Error updating bank statement transaction:", error);
-      res.status(400).json({ message: "Failed to update bank statement transaction" });
+      res
+        .status(400)
+        .json({ message: "Failed to update bank statement transaction" });
     }
   });
 
@@ -1503,297 +1871,412 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting bank statement transaction:", error);
-      res.status(500).json({ message: "Failed to delete bank statement transaction" });
+      res
+        .status(500)
+        .json({ message: "Failed to delete bank statement transaction" });
     }
   });
 
-  app.put("/api/bank-statement-transactions/:id/categorize", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const { categoryId, customerId, vendorId, notes } = req.body;
-      
-      const transaction = await storage.categorizeBankTransaction(id, {
-        categoryId,
-        customerId,
-        vendorId,
-        notes
-      });
-      res.json(transaction);
-    } catch (error) {
-      console.error("Error categorizing bank statement transaction:", error);
-      res.status(400).json({ message: "Failed to categorize bank statement transaction" });
-    }
-  });
+  app.put(
+    "/api/bank-statement-transactions/:id/categorize",
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const { categoryId, customerId, vendorId, notes } = req.body;
 
-  app.get("/api/companies/:companyId/bank-transactions/suggest-categorization", async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const { description, amount } = req.query;
-      
-      if (!description || !amount) {
-        return res.status(400).json({ message: "Description and amount are required" });
+        const transaction = await storage.categorizeBankTransaction(id, {
+          categoryId,
+          customerId,
+          vendorId,
+          notes,
+        });
+        res.json(transaction);
+      } catch (error) {
+        console.error("Error categorizing bank statement transaction:", error);
+        res
+          .status(400)
+          .json({ message: "Failed to categorize bank statement transaction" });
       }
-      
-      const suggestions = await storage.suggestTransactionCategorization(
-        description as string,
-        parseFloat(amount as string),
-        companyId
-      );
-      res.json(suggestions);
-    } catch (error) {
-      console.error("Error suggesting categorization:", error);
-      res.status(500).json({ message: "Failed to suggest categorization" });
-    }
-  });
+    },
+  );
+
+  app.get(
+    "/api/companies/:companyId/bank-transactions/suggest-categorization",
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const { description, amount } = req.query;
+
+        if (!description || !amount) {
+          return res
+            .status(400)
+            .json({ message: "Description and amount are required" });
+        }
+
+        const suggestions = await storage.suggestTransactionCategorization(
+          description as string,
+          parseFloat(amount as string),
+          companyId,
+        );
+        res.json(suggestions);
+      } catch (error) {
+        console.error("Error suggesting categorization:", error);
+        res.status(500).json({ message: "Failed to suggest categorization" });
+      }
+    },
+  );
 
   // Process bank statement upload
   app.post("/api/bank-statement-uploads/:id/process", async (req, res) => {
     try {
       const uploadId = parseInt(req.params.id);
       const { csvData } = req.body;
-      
+
       if (!csvData || !Array.isArray(csvData)) {
         return res.status(400).json({ message: "CSV data is required" });
       }
-      
+
       await storage.processBankStatementUpload(uploadId, csvData);
       res.json({ message: "Bank statement processed successfully" });
     } catch (error) {
       console.error("Error processing bank statement upload:", error);
-      res.status(400).json({ message: "Failed to process bank statement upload" });
+      res
+        .status(400)
+        .json({ message: "Failed to process bank statement upload" });
     }
   });
 
   // Company-specific User Management Routes
-  app.get("/api/companies/:companyId/users", requirePermission("users", "read"), async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const users = await storage.getCompanyUsers(companyId);
-      res.json(users);
-    } catch (error) {
-      console.error("Error fetching company users:", error);
-      res.status(500).json({ message: "Failed to fetch users" });
-    }
-  });
-
-  app.get("/api/users/:id", requirePermission("users", "read"), async (req, res) => {
-    try {
-      const id = req.params.id;
-      const user = await storage.getUser(id);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
+  app.get(
+    "/api/companies/:companyId/users",
+    requirePermission("users", "read"),
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const users = await storage.getCompanyUsers(companyId);
+        res.json(users);
+      } catch (error) {
+        console.error("Error fetching company users:", error);
+        res.status(500).json({ message: "Failed to fetch users" });
       }
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
+    },
+  );
 
-  app.post("/api/companies/:companyId/users", requirePermission("users", "write"), async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const user = await storage.createCompanyUser(companyId, req.body);
-      res.status(201).json(user);
-    } catch (error) {
-      console.error("Error creating user:", error);
-      res.status(400).json({ message: "Failed to create user" });
-    }
-  });
+  app.get(
+    "/api/users/:id",
+    requirePermission("users", "read"),
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        const user = await storage.getUser(id);
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        res.json(user);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        res.status(500).json({ message: "Failed to fetch user" });
+      }
+    },
+  );
 
-  app.put("/api/companies/:companyId/users/:id", requirePermission("users", "write"), async (req, res) => {
-    try {
-      const id = req.params.id;
-      const user = await storage.updateUser(id, req.body);
-      res.json(user);
-    } catch (error) {
-      console.error("Error updating user:", error);
-      res.status(400).json({ message: "Failed to update user" });
-    }
-  });
+  app.post(
+    "/api/companies/:companyId/users",
+    requirePermission("users", "write"),
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const user = await storage.createCompanyUser(companyId, req.body);
+        res.status(201).json(user);
+      } catch (error) {
+        console.error("Error creating user:", error);
+        res.status(400).json({ message: "Failed to create user" });
+      }
+    },
+  );
 
-  app.delete("/api/companies/:companyId/users/:id", requirePermission("users", "delete"), async (req, res) => {
-    try {
-      const id = req.params.id;
-      await storage.deleteUser(id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting user:", error);
-      res.status(500).json({ message: "Failed to delete user" });
-    }
-  });
+  app.put(
+    "/api/companies/:companyId/users/:id",
+    requirePermission("users", "write"),
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        const user = await storage.updateUser(id, req.body);
+        res.json(user);
+      } catch (error) {
+        console.error("Error updating user:", error);
+        res.status(400).json({ message: "Failed to update user" });
+      }
+    },
+  );
+
+  app.delete(
+    "/api/companies/:companyId/users/:id",
+    requirePermission("users", "delete"),
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        await storage.deleteUser(id);
+        res.status(204).send();
+      } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({ message: "Failed to delete user" });
+      }
+    },
+  );
 
   // Role Management Routes
-  app.get("/api/companies/:companyId/roles", requirePermission("roles", "read"), async (req, res) => {
-    try {
-      const companyId = parseInt(req.params.companyId);
-      const roles = await storage.getCompanyRoles(companyId);
-      res.json(roles);
-    } catch (error) {
-      console.error("Error fetching company roles:", error);
-      res.status(500).json({ message: "Failed to fetch roles" });
-    }
-  });
-
-  app.get("/api/roles/:id", requirePermission("roles", "read"), async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const role = await storage.getRole(id);
-      if (!role) {
-        return res.status(404).json({ message: "Role not found" });
+  app.get(
+    "/api/companies/:companyId/roles",
+    requirePermission("roles", "read"),
+    async (req, res) => {
+      try {
+        const companyId = parseInt(req.params.companyId);
+        const roles = await storage.getCompanyRoles(companyId);
+        res.json(roles);
+      } catch (error) {
+        console.error("Error fetching company roles:", error);
+        res.status(500).json({ message: "Failed to fetch roles" });
       }
-      res.json(role);
-    } catch (error) {
-      console.error("Error fetching role:", error);
-      res.status(500).json({ message: "Failed to fetch role" });
-    }
-  });
+    },
+  );
 
-  app.post("/api/companies/:companyId/roles", requirePermission("roles", "write"), async (req, res) => {
-    try {
-      const validatedData = insertUserRoleSchema.parse(req.body);
-      const role = await storage.createRole(validatedData);
-      res.status(201).json(role);
-    } catch (error) {
-      console.error("Error creating role:", error);
-      res.status(400).json({ message: "Failed to create role" });
-    }
-  });
+  app.get(
+    "/api/roles/:id",
+    requirePermission("roles", "read"),
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const role = await storage.getRole(id);
+        if (!role) {
+          return res.status(404).json({ message: "Role not found" });
+        }
+        res.json(role);
+      } catch (error) {
+        console.error("Error fetching role:", error);
+        res.status(500).json({ message: "Failed to fetch role" });
+      }
+    },
+  );
 
-  app.put("/api/companies/:companyId/roles/:id", requirePermission("roles", "write"), async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const validatedData = insertUserRoleSchema.partial().parse(req.body);
-      const role = await storage.updateRole(id, validatedData);
-      res.json(role);
-    } catch (error) {
-      console.error("Error updating role:", error);
-      res.status(400).json({ message: "Failed to update role" });
-    }
-  });
+  app.post(
+    "/api/companies/:companyId/roles",
+    requirePermission("roles", "write"),
+    async (req, res) => {
+      try {
+        const validatedData = insertUserRoleSchema.parse(req.body);
+        const role = await storage.createRole(validatedData);
+        res.status(201).json(role);
+      } catch (error) {
+        console.error("Error creating role:", error);
+        res.status(400).json({ message: "Failed to create role" });
+      }
+    },
+  );
 
-  app.delete("/api/companies/:companyId/roles/:id", requirePermission("roles", "delete"), async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      await storage.deleteRole(id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting role:", error);
-      res.status(500).json({ message: "Failed to delete role" });
-    }
-  });
+  app.put(
+    "/api/companies/:companyId/roles/:id",
+    requirePermission("roles", "write"),
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const validatedData = insertUserRoleSchema.partial().parse(req.body);
+        const role = await storage.updateRole(id, validatedData);
+        res.json(role);
+      } catch (error) {
+        console.error("Error updating role:", error);
+        res.status(400).json({ message: "Failed to update role" });
+      }
+    },
+  );
+
+  app.delete(
+    "/api/companies/:companyId/roles/:id",
+    requirePermission("roles", "delete"),
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        await storage.deleteRole(id);
+        res.status(204).send();
+      } catch (error) {
+        console.error("Error deleting role:", error);
+        res.status(500).json({ message: "Failed to delete role" });
+      }
+    },
+  );
 
   // Permission Management Routes
-  app.get("/api/companies/:companyId/permissions", requirePermission("roles", "read"), async (req, res) => {
-    try {
-      const permissions = await storage.getPermissions();
-      res.json(permissions);
-    } catch (error) {
-      console.error("Error fetching permissions:", error);
-      res.status(500).json({ message: "Failed to fetch permissions" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/permissions",
+    requirePermission("roles", "read"),
+    async (req, res) => {
+      try {
+        const permissions = await storage.getPermissions();
+        res.json(permissions);
+      } catch (error) {
+        console.error("Error fetching permissions:", error);
+        res.status(500).json({ message: "Failed to fetch permissions" });
+      }
+    },
+  );
 
-  app.get("/api/companies/:companyId/roles/:id/permissions", requirePermission("roles", "read"), async (req, res) => {
-    try {
-      const roleId = parseInt(req.params.id);
-      const permissions = await storage.getRolePermissions(roleId);
-      res.json(permissions);
-    } catch (error) {
-      console.error("Error fetching role permissions:", error);
-      res.status(500).json({ message: "Failed to fetch role permissions" });
-    }
-  });
+  app.get(
+    "/api/companies/:companyId/roles/:id/permissions",
+    requirePermission("roles", "read"),
+    async (req, res) => {
+      try {
+        const roleId = parseInt(req.params.id);
+        const permissions = await storage.getRolePermissions(roleId);
+        res.json(permissions);
+      } catch (error) {
+        console.error("Error fetching role permissions:", error);
+        res.status(500).json({ message: "Failed to fetch role permissions" });
+      }
+    },
+  );
 
-  app.post("/api/roles/:roleId/permissions/:permissionId", requirePermission("roles", "write"), async (req, res) => {
-    try {
-      const roleId = parseInt(req.params.roleId);
-      const permissionId = parseInt(req.params.permissionId);
-      const rolePermission = await storage.assignPermissionToRole(roleId, permissionId);
-      res.status(201).json(rolePermission);
-    } catch (error) {
-      console.error("Error assigning permission to role:", error);
-      res.status(400).json({ message: "Failed to assign permission to role" });
-    }
-  });
+  app.post(
+    "/api/roles/:roleId/permissions/:permissionId",
+    requirePermission("roles", "write"),
+    async (req, res) => {
+      try {
+        const roleId = parseInt(req.params.roleId);
+        const permissionId = parseInt(req.params.permissionId);
+        const rolePermission = await storage.assignPermissionToRole(
+          roleId,
+          permissionId,
+        );
+        res.status(201).json(rolePermission);
+      } catch (error) {
+        console.error("Error assigning permission to role:", error);
+        res
+          .status(400)
+          .json({ message: "Failed to assign permission to role" });
+      }
+    },
+  );
 
-  app.delete("/api/roles/:roleId/permissions/:permissionId", requirePermission("roles", "write"), async (req, res) => {
-    try {
-      const roleId = parseInt(req.params.roleId);
-      const permissionId = parseInt(req.params.permissionId);
-      await storage.removePermissionFromRole(roleId, permissionId);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error removing permission from role:", error);
-      res.status(500).json({ message: "Failed to remove permission from role" });
-    }
-  });
+  app.delete(
+    "/api/roles/:roleId/permissions/:permissionId",
+    requirePermission("roles", "write"),
+    async (req, res) => {
+      try {
+        const roleId = parseInt(req.params.roleId);
+        const permissionId = parseInt(req.params.permissionId);
+        await storage.removePermissionFromRole(roleId, permissionId);
+        res.status(204).send();
+      } catch (error) {
+        console.error("Error removing permission from role:", error);
+        res
+          .status(500)
+          .json({ message: "Failed to remove permission from role" });
+      }
+    },
+  );
 
   // User Role Assignment Routes
-  app.get("/api/users/:id/roles", requirePermission("users", "read"), async (req, res) => {
-    try {
-      const userId = req.params.id;
-      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : undefined;
-      const roles = await storage.getUserRoles(userId, companyId);
-      res.json(roles);
-    } catch (error) {
-      console.error("Error fetching user roles:", error);
-      res.status(500).json({ message: "Failed to fetch user roles" });
-    }
-  });
+  app.get(
+    "/api/users/:id/roles",
+    requirePermission("users", "read"),
+    async (req, res) => {
+      try {
+        const userId = req.params.id;
+        const companyId = req.query.companyId
+          ? parseInt(req.query.companyId as string)
+          : undefined;
+        const roles = await storage.getUserRoles(userId, companyId);
+        res.json(roles);
+      } catch (error) {
+        console.error("Error fetching user roles:", error);
+        res.status(500).json({ message: "Failed to fetch user roles" });
+      }
+    },
+  );
 
-  app.post("/api/users/:userId/roles/:roleId", requirePermission("users", "write"), async (req, res) => {
-    try {
-      const userId = req.params.userId;
-      const roleId = parseInt(req.params.roleId);
-      const companyId = req.body.companyId ? parseInt(req.body.companyId) : undefined;
-      const assignedBy = req.body.assignedBy;
-      
-      const roleAssignment = await storage.assignRoleToUser(userId, roleId, companyId, assignedBy);
-      res.status(201).json(roleAssignment);
-    } catch (error) {
-      console.error("Error assigning role to user:", error);
-      res.status(400).json({ message: "Failed to assign role to user" });
-    }
-  });
+  app.post(
+    "/api/users/:userId/roles/:roleId",
+    requirePermission("users", "write"),
+    async (req, res) => {
+      try {
+        const userId = req.params.userId;
+        const roleId = parseInt(req.params.roleId);
+        const companyId = req.body.companyId
+          ? parseInt(req.body.companyId)
+          : undefined;
+        const assignedBy = req.body.assignedBy;
 
-  app.delete("/api/users/:userId/roles/:roleId", requirePermission("users", "write"), async (req, res) => {
-    try {
-      const userId = req.params.userId;
-      const roleId = parseInt(req.params.roleId);
-      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : undefined;
-      
-      await storage.removeRoleFromUser(userId, roleId, companyId);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error removing role from user:", error);
-      res.status(500).json({ message: "Failed to remove role from user" });
-    }
-  });
+        const roleAssignment = await storage.assignRoleToUser(
+          userId,
+          roleId,
+          companyId,
+          assignedBy,
+        );
+        res.status(201).json(roleAssignment);
+      } catch (error) {
+        console.error("Error assigning role to user:", error);
+        res.status(400).json({ message: "Failed to assign role to user" });
+      }
+    },
+  );
 
-  app.get("/api/users/:id/permissions", requirePermission("users", "read"), async (req, res) => {
-    try {
-      const userId = req.params.id;
-      const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : undefined;
-      const permissions = await storage.getUserPermissions(userId, companyId);
-      res.json(permissions);
-    } catch (error) {
-      console.error("Error fetching user permissions:", error);
-      res.status(500).json({ message: "Failed to fetch user permissions" });
-    }
-  });
+  app.delete(
+    "/api/users/:userId/roles/:roleId",
+    requirePermission("users", "write"),
+    async (req, res) => {
+      try {
+        const userId = req.params.userId;
+        const roleId = parseInt(req.params.roleId);
+        const companyId = req.query.companyId
+          ? parseInt(req.query.companyId as string)
+          : undefined;
 
-  app.post("/api/users/:id/check-permission", requirePermission("users", "read"), async (req, res) => {
-    try {
-      const userId = req.params.id;
-      const { resource, action, companyId } = req.body;
-      const hasPermission = await storage.hasPermission(userId, resource, action, companyId);
-      res.json({ hasPermission });
-    } catch (error) {
-      console.error("Error checking user permission:", error);
-      res.status(500).json({ message: "Failed to check user permission" });
-    }
-  });
+        await storage.removeRoleFromUser(userId, roleId, companyId);
+        res.status(204).send();
+      } catch (error) {
+        console.error("Error removing role from user:", error);
+        res.status(500).json({ message: "Failed to remove role from user" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/users/:id/permissions",
+    requirePermission("users", "read"),
+    async (req, res) => {
+      try {
+        const userId = req.params.id;
+        const companyId = req.query.companyId
+          ? parseInt(req.query.companyId as string)
+          : undefined;
+        const permissions = await storage.getUserPermissions(userId, companyId);
+        res.json(permissions);
+      } catch (error) {
+        console.error("Error fetching user permissions:", error);
+        res.status(500).json({ message: "Failed to fetch user permissions" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/users/:id/check-permission",
+    requirePermission("users", "read"),
+    async (req, res) => {
+      try {
+        const userId = req.params.id;
+        const { resource, action, companyId } = req.body;
+        const hasPermission = await storage.hasPermission(
+          userId,
+          resource,
+          action,
+          companyId,
+        );
+        res.json({ hasPermission });
+      } catch (error) {
+        console.error("Error checking user permission:", error);
+        res.status(500).json({ message: "Failed to check user permission" });
+      }
+    },
+  );
 
   const httpServer = createServer(app);
   return httpServer;
