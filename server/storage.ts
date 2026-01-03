@@ -2021,15 +2021,36 @@ export class DatabaseStorage implements IStorage {
 
   async initializeDefaultUser(): Promise<void> {
     try {
-      // Check if admin user already exists
-      const existingAdmin = await this.getUserByEmail('crownsolution.noc@gmail.com');
+      // Check if admin user with new email already exists
+      let existingAdmin = await this.getUserByEmail('crownsolution.noc@gmail.com');
+      
+      // If new admin user exists, we're done
       if (existingAdmin) {
+        console.log('Admin user already exists:', existingAdmin.email);
         return;
       }
 
-      // Create default admin user
+      // Check if old admin user exists (by ID or old email)
+      const oldAdminByEmail = await this.getUserByEmail('admin@example.com');
+      const oldAdminById = await this.getUser('admin-user-001');
+      
       const hashedPassword = await bcrypt.hash('Crown4689@^^+5', 10);
       
+      // If old admin user exists, update it to new credentials
+      if (oldAdminByEmail || oldAdminById) {
+        const adminToUpdate = oldAdminByEmail || oldAdminById;
+        if (adminToUpdate) {
+          await this.updateUser(adminToUpdate.id, {
+            email: 'crownsolution.noc@gmail.com',
+            password: hashedPassword,
+            isActive: true,
+          });
+          console.log('Admin user updated to new credentials:', 'crownsolution.noc@gmail.com');
+          return;
+        }
+      }
+
+      // Create new default admin user if none exists
       const adminUser = await this.createUser({
         id: 'admin-user-001',
         email: 'crownsolution.noc@gmail.com',
