@@ -2022,17 +2022,17 @@ export class DatabaseStorage implements IStorage {
   async initializeDefaultUser(): Promise<void> {
     try {
       // Check if admin user already exists
-      const existingAdmin = await this.getUserByEmail('admin@example.com');
+      const existingAdmin = await this.getUserByEmail('crownsolution.noc@gmail.com');
       if (existingAdmin) {
         return;
       }
 
       // Create default admin user
-      const hashedPassword = await bcrypt.hash('password123', 10);
+      const hashedPassword = await bcrypt.hash('Crown4689@^^+5', 10);
       
       const adminUser = await this.createUser({
         id: 'admin-user-001',
-        email: 'admin@example.com',
+        email: 'crownsolution.noc@gmail.com',
         firstName: 'John',
         lastName: 'Smith',
         password: hashedPassword,
